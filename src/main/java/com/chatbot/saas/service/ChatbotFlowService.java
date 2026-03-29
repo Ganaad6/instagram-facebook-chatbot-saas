@@ -120,14 +120,7 @@ public class ChatbotFlowService {
     @Transactional
     public FlowResponse activateFlow(Long flowId) {
         ChatbotFlow flow = findFlowById(flowId);
-        // Deactivate all other flows for this business
-        List<ChatbotFlow> allFlows = chatbotFlowRepository.findAllByBusinessId(flow.getBusiness().getId());
-        for (ChatbotFlow f : allFlows) {
-            if (!f.getId().equals(flowId) && Boolean.TRUE.equals(f.getIsActive())) {
-                f.setIsActive(false);
-                chatbotFlowRepository.save(f);
-            }
-        }
+        chatbotFlowRepository.deactivateAllExcept(flow.getBusiness().getId(), flowId);
         flow.setIsActive(true);
         return FlowResponse.from(chatbotFlowRepository.save(flow));
     }

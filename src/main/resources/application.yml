@@ -23,9 +23,10 @@ meta:
   app:
     id: ${META_APP_ID:}
     secret: ${META_APP_SECRET:}
+    token-expiry-days: ${META_TOKEN_EXPIRY_DAYS:60}
   graph:
     api:
-      url: https://graph.facebook.com/v18.0
+      url: ${META_GRAPH_API_URL:https://graph.facebook.com/v18.0}
   oauth:
     redirect-uri: ${BASE_URL:http://localhost:8080}/api/auth/meta/callback
 

@@ -27,6 +27,9 @@ public class OAuthService {
     @Value("${meta.app.secret}")
     private String appSecret;
 
+    @Value("${meta.app.token-expiry-days:60}")
+    private int tokenExpiryDays;
+
     @Value("${meta.oauth.redirect-uri}")
     private String redirectUri;
 
@@ -59,7 +62,7 @@ public class OAuthService {
             Business business = businessRepository.findById(businessId)
                     .orElseThrow(() -> new RuntimeException("Business not found: " + businessId));
             business.setAccessToken(tokenResponse.get("access_token").toString());
-            business.setTokenExpiresAt(LocalDateTime.now().plusDays(60));
+            business.setTokenExpiresAt(LocalDateTime.now().plusDays(tokenExpiryDays));
             businessRepository.save(business);
             log.info("Access token saved for business {}", businessId);
         }
@@ -89,7 +92,7 @@ public class OAuthService {
 
         if (tokenResponse != null && tokenResponse.containsKey("access_token")) {
             business.setAccessToken(tokenResponse.get("access_token").toString());
-            business.setTokenExpiresAt(LocalDateTime.now().plusDays(60));
+            business.setTokenExpiresAt(LocalDateTime.now().plusDays(tokenExpiryDays));
             businessRepository.save(business);
         }
     }
