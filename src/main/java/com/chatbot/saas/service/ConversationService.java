@@ -23,6 +23,9 @@ public class ConversationService {
     private final ConversationRepository conversationRepository;
     private final FlowStepRepository flowStepRepository;
 
+    /**
+     * Create a conversation using the legacy flow-step engine.
+     */
     @Transactional
     public Conversation createConversation(Customer customer, Business business, ChatbotFlow flow) {
         FlowStep firstStep = flowStepRepository.findFirstByFlowIdOrderByStepOrderAsc(flow.getId())
@@ -33,6 +36,24 @@ public class ConversationService {
                 .flow(flow)
                 .currentStep(firstStep)
                 .status(Conversation.Status.ACTIVE)
+                .state(Conversation.State.IDLE)
+                .startedAt(LocalDateTime.now())
+                .updatedAt(LocalDateTime.now())
+                .build();
+        return conversationRepository.save(conversation);
+    }
+
+    /**
+     * Create a conversation driven by the product-order state machine (no flow needed).
+     */
+    @Transactional
+    public Conversation createStateMachineConversation(Customer customer, Business business, String platform) {
+        Conversation conversation = Conversation.builder()
+                .customer(customer)
+                .business(business)
+                .status(Conversation.Status.ACTIVE)
+                .state(Conversation.State.IDLE)
+                .platform(platform)
                 .startedAt(LocalDateTime.now())
                 .updatedAt(LocalDateTime.now())
                 .build();

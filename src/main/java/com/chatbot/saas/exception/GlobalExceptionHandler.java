@@ -1,5 +1,8 @@
 package com.chatbot.saas.exception;
 
+import com.chatbot.saas.exception.CategoryNotFoundException;
+import com.chatbot.saas.exception.ProductNotFoundException;
+import com.chatbot.saas.exception.OrderNotFoundException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.MethodArgumentNotValidException;
@@ -13,7 +16,9 @@ import java.util.Map;
 public class GlobalExceptionHandler {
 
     @ExceptionHandler({BusinessNotFoundException.class, FlowNotFoundException.class,
-            CustomerNotFoundException.class, ConversationNotFoundException.class})
+            CustomerNotFoundException.class, ConversationNotFoundException.class,
+            CategoryNotFoundException.class, ProductNotFoundException.class,
+            OrderNotFoundException.class})
     public ResponseEntity<Map<String, Object>> handleNotFound(RuntimeException ex) {
         Map<String, Object> body = new HashMap<>();
         body.put("error", ex.getMessage());

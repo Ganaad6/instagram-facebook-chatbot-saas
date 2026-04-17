@@ -15,6 +15,8 @@ public class ConversationResponse {
     private Long flowId;
     private Long currentStepId;
     private String status;
+    private String state;
+    private String platform;
     private LocalDateTime startedAt;
     private LocalDateTime completedAt;
 
@@ -23,9 +25,11 @@ public class ConversationResponse {
                 .id(conversation.getId())
                 .customerId(conversation.getCustomer().getId())
                 .businessId(conversation.getBusiness().getId())
-                .flowId(conversation.getFlow().getId())
+                .flowId(conversation.getFlow() != null ? conversation.getFlow().getId() : null)
                 .currentStepId(conversation.getCurrentStep() != null ? conversation.getCurrentStep().getId() : null)
                 .status(conversation.getStatus().name())
+                .state(conversation.getState() != null ? conversation.getState().name() : null)
+                .platform(conversation.getPlatform())
                 .startedAt(conversation.getStartedAt())
                 .completedAt(conversation.getCompletedAt())
                 .build();

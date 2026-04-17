@@ -42,30 +42,58 @@ public class WebhookService {
 
         try {
             JsonNode root = objectMapper.readTree(payload);
-            log.debug("Processing webhook for object type: {}", root.path("object").asText());
+            String objectType = root.path("object").asText();
+            log.debug("Processing webhook for object type: {}", objectType);
+
+            // Determine platform from object type
+            String platform = "page".equalsIgnoreCase(objectType) ? "FACEBOOK" : "INSTAGRAM";
 
             JsonNode entries = root.path("entry");
             for (JsonNode entry : entries) {
+                // Facebook Messenger uses "messaging"; Instagram uses "messaging" too
                 JsonNode messagingArray = entry.path("messaging");
-
                 for (JsonNode messagingEvent : messagingArray) {
-                    JsonNode sender = messagingEvent.path("sender");
-                    JsonNode recipient = messagingEvent.path("recipient");
-                    JsonNode message = messagingEvent.path("message");
-
-                    String senderId = sender.path("id").asText();
-                    String recipientId = recipient.path("id").asText();
-                    String messageText = message.path("text").asText();
-
-                    if (!senderId.isEmpty() && !messageText.isEmpty()) {
-                        log.debug("Routing message from {} to {}", senderId, recipientId);
-                        messageHandlerService.handleIncomingMessage(senderId, messageText, recipientId);
-                    }
+                    processMessagingEvent(messagingEvent, platform);
                 }
             }
         } catch (Exception e) {
             log.error("Error processing webhook payload: {}", e.getMessage(), e);
             throw new RuntimeException("Error processing webhook", e);
+        }
+    }
+
+    private void processMessagingEvent(JsonNode messagingEvent, String platform) {
+        JsonNode sender = messagingEvent.path("sender");
+        JsonNode recipient = messagingEvent.path("recipient");
+        String senderId = sender.path("id").asText();
+        String recipientId = recipient.path("id").asText();
+
+        if (senderId.isEmpty() || recipientId.isEmpty()) {
+            return;
+        }
+
+        // Handle text messages
+        if (messagingEvent.has("message")) {
+            JsonNode message = messagingEvent.path("message");
+            // Skip echo messages (messages sent by the page itself)
+            if (message.path("is_echo").asBoolean(false)) {
+                return;
+            }
+            String messageText = message.path("text").asText();
+            if (!messageText.isEmpty()) {
+                log.debug("Text message from {} to {} [{}]", senderId, recipientId, platform);
+                messageHandlerService.handleIncomingMessage(senderId, messageText, recipientId, platform);
+            }
+        }
+
+        // Handle postback (Facebook quick-reply button clicks)
+        if (messagingEvent.has("postback")) {
+            JsonNode postback = messagingEvent.path("postback");
+            String payload = postback.path("payload").asText();
+            if (!payload.isEmpty()) {
+                log.debug("Postback from {} payload={}", senderId, payload);
+                messageHandlerService.handlePostback(senderId, payload, recipientId);
+            }
         }
     }
 

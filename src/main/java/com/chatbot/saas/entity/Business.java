@@ -42,6 +42,9 @@ public class Business {
     @Column(name = "webhook_verify_token")
     private String webhookVerifyToken;
 
+    @Column(name = "notification_webhook_url", columnDefinition = "TEXT")
+    private String notificationWebhookUrl;
+
     @Column(name = "created_at", nullable = false)
     private LocalDateTime createdAt;
 

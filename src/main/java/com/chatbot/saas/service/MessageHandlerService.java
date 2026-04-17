@@ -26,12 +26,24 @@ public class MessageHandlerService {
     private final ValidationService validationService;
     private final MessageService messageService;
     private final MessageRepository messageRepository;
+    private final ChatbotEngineService chatbotEngineService;
+
+    /**
+     * Handle a text message (Instagram or Facebook plain-text).
+     * Uses the product-order state machine when no legacy flow is active.
+     */
+    @Async
+    @Transactional
+    public void handleIncomingMessage(String senderId, String messageText, String recipientId) {
+        handleIncomingMessage(senderId, messageText, recipientId, "INSTAGRAM");
+    }
 
     @Async
-    public void handleIncomingMessage(String senderId, String messageText, String recipientId) {
-        log.debug("Handling message from {} to {}: {}", senderId, recipientId, messageText);
+    @Transactional
+    public void handleIncomingMessage(String senderId, String messageText, String recipientId, String platform) {
+        log.debug("Handling message from {} to {} [{}]: {}", senderId, recipientId, platform, messageText);
 
-        // 1. Find business by Instagram/Page ID
+        // 1. Resolve business
         Optional<Business> businessOpt = businessService.findByInstagramAccountId(recipientId);
         if (businessOpt.isEmpty()) {
             businessOpt = businessService.findByFacebookPageId(recipientId);
@@ -45,29 +57,51 @@ public class MessageHandlerService {
         // 2. Find or create customer
         Customer customer = customerService.findOrCreateCustomer(senderId, business);
 
-        // 3. Save inbound message
+        // 3. Persist inbound message
         saveMessage(null, customer, business, messageText, Message.Direction.INBOUND);
 
-        // 4. Find active conversation
+        // 4. Find or create active conversation
         Optional<Conversation> activeConversation = conversationService.findActiveConversationForCustomer(customer.getId());
         Conversation conversation;
 
         if (activeConversation.isPresent()) {
             conversation = activeConversation.get();
         } else {
-            // Find active flow for business
+            // Check if a legacy flow-based chatbot is configured
             Optional<ChatbotFlow> activeFlow = chatbotFlowRepository.findByBusinessIdAndIsActiveTrue(business.getId());
-            if (activeFlow.isEmpty()) {
-                log.warn("No active flow found for business: {}", business.getId());
-                if (business.getAccessToken() != null) {
-                    messageService.sendMessage(senderId, "Sorry, we're not available right now. Please try again later.", business.getAccessToken());
-                }
-                return;
+            if (activeFlow.isPresent()) {
+                conversation = conversationService.createConversation(customer, business, activeFlow.get());
+            } else {
+                // Default: product-order state machine
+                conversation = conversationService.createStateMachineConversation(customer, business, platform);
             }
-            conversation = conversationService.createConversation(customer, business, activeFlow.get());
         }
 
-        // 5. Get current step
+        // 5. Route to appropriate engine
+        if (conversation.getFlow() != null) {
+            // Legacy flow-step engine
+            handleLegacyFlowStep(conversation, customer, business, messageText, senderId);
+        } else {
+            // Product-order state machine engine
+            chatbotEngineService.process(conversation, messageText, platform);
+        }
+    }
+
+    /**
+     * Handle a Facebook postback (button click).
+     * The payload is treated as the user's text input for the state machine.
+     */
+    @Async
+    @Transactional
+    public void handlePostback(String senderId, String payload, String recipientId) {
+        log.debug("Handling postback from {} payload={}", senderId, payload);
+        handleIncomingMessage(senderId, payload, recipientId, "FACEBOOK");
+    }
+
+    // ─── Legacy Flow-Step Engine ──────────────────────────────────────────────
+
+    private void handleLegacyFlowStep(Conversation conversation, Customer customer,
+                                       Business business, String messageText, String senderId) {
         FlowStep currentStep = conversation.getCurrentStep();
         if (currentStep == null) {
             log.warn("No current step for conversation: {}", conversation.getId());
@@ -75,7 +109,6 @@ public class MessageHandlerService {
             return;
         }
 
-        // 6. Validate input
         boolean isValid = true;
         if (currentStep.getFieldName() != null && !currentStep.getFieldName().isEmpty()) {
             String validationType = currentStep.getValidationType() != null
@@ -83,13 +116,10 @@ public class MessageHandlerService {
             isValid = validationService.validate(messageText, validationType, currentStep.getValidationRegex());
 
             if (isValid) {
-                // 7a. Save collected data
                 conversationDataService.saveData(conversation, currentStep.getFieldName(), messageText);
             } else {
-                // 7b. Send error message
                 String errorMsg = currentStep.getErrorMessage() != null
-                        ? currentStep.getErrorMessage()
-                        : "Invalid input. Please try again.";
+                        ? currentStep.getErrorMessage() : "Invalid input. Please try again.";
                 if (business.getAccessToken() != null) {
                     messageService.sendMessage(senderId, errorMsg, business.getAccessToken());
                     saveMessage(conversation, customer, business, errorMsg, Message.Direction.OUTBOUND);
@@ -98,7 +128,6 @@ public class MessageHandlerService {
             }
         }
 
-        // 8. Advance to next step
         FlowStep nextStep = currentStep.getNextStep();
         if (nextStep != null) {
             conversationService.updateConversationStep(conversation, nextStep);
@@ -107,7 +136,6 @@ public class MessageHandlerService {
                 saveMessage(conversation, customer, business, nextStep.getMessageTemplate(), Message.Direction.OUTBOUND);
             }
         } else {
-            // Flow complete
             conversationService.completeConversation(conversation);
             String completionMsg = "Thank you! Your information has been recorded.";
             if (business.getAccessToken() != null) {
@@ -117,6 +145,8 @@ public class MessageHandlerService {
             log.info("Conversation {} completed for customer {}", conversation.getId(), customer.getId());
         }
     }
+
+    // ─── Helpers ──────────────────────────────────────────────────────────────
 
     private void saveMessage(Conversation conversation, Customer customer, Business business,
                              String content, Message.Direction direction) {
