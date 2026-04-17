@@ -29,7 +29,7 @@ public interface OrderRepository extends JpaRepository<Order, Long> {
 
     long countByBusinessIdAndCreatedAtBetween(Long businessId, LocalDateTime from, LocalDateTime to);
 
-    @Query("SELECT o.product.name, COUNT(o) as cnt FROM CustomerOrder o WHERE o.business.id = :businessId GROUP BY o.product.name ORDER BY cnt DESC")
+    @Query("SELECT o.product.name, COUNT(o) as cnt FROM CustomerOrder o WHERE o.business.id = :businessId GROUP BY o.product.name ORDER BY COUNT(o) DESC")
     List<Object[]> findTopProductsByBusiness(@Param("businessId") Long businessId, Pageable pageable);
 
     @Query(value = "SELECT DATE(created_at) as day, COUNT(*) as cnt FROM orders WHERE business_id = :businessId AND created_at BETWEEN :from AND :to GROUP BY day ORDER BY day",

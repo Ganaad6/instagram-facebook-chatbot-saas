@@ -22,9 +22,7 @@ public class WebhookController {
             @RequestParam("hub.challenge") String challenge) {
         log.debug("Webhook verification request received");
         String result = webhookService.verifyWebhook(mode, token, challenge);
-        return ResponseEntity.ok()
-                .contentType(MediaType.TEXT_PLAIN)
-                .body(result);
+        return ResponseEntity.ok(result);
     }
 
     @PostMapping
