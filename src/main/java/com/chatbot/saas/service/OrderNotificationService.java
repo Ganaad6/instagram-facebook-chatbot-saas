@@ -15,7 +15,7 @@ import java.util.Map;
 @Slf4j
 public class OrderNotificationService {
 
-    private final WebClient metaWebClient;
+    private final WebClient.Builder webClientBuilder;
 
     @Async
     public void notifyNewOrder(Business business, Order order) {
@@ -33,8 +33,9 @@ public class OrderNotificationService {
                     "address", order.getAddress() != null ? order.getAddress() : "",
                     "status", order.getStatus().name()
             );
-            WebClient.create(business.getNotificationWebhookUrl())
+            webClientBuilder.build()
                     .post()
+                    .uri(business.getNotificationWebhookUrl())
                     .bodyValue(payload)
                     .retrieve()
                     .bodyToMono(String.class)
