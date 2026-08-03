@@ -5,6 +5,7 @@ import com.chatbot.saas.entity.*;
 import com.chatbot.saas.exception.ConversationNotFoundException;
 import com.chatbot.saas.repository.ConversationRepository;
 import com.chatbot.saas.repository.FlowStepRepository;
+import com.chatbot.saas.security.TenantContext;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -22,6 +23,7 @@ public class ConversationService {
 
     private final ConversationRepository conversationRepository;
     private final FlowStepRepository flowStepRepository;
+    private final TenantContext tenantContext;
 
     /**
      * Create a conversation using the legacy flow-step engine.
@@ -94,7 +96,16 @@ public class ConversationService {
     public ConversationResponse getConversationById(Long id) {
         Conversation conversation = conversationRepository.findById(id)
                 .orElseThrow(() -> new ConversationNotFoundException(id));
+        tenantContext.assertAccess(conversation.getBusiness().getId());
         return ConversationResponse.from(conversation);
+    }
+
+    @Transactional(readOnly = true)
+    public Conversation getConversationEntityById(Long id) {
+        Conversation conversation = conversationRepository.findById(id)
+                .orElseThrow(() -> new ConversationNotFoundException(id));
+        tenantContext.assertAccess(conversation.getBusiness().getId());
+        return conversation;
     }
 
     @Transactional(readOnly = true)

@@ -27,6 +27,7 @@ public class MessageHandlerService {
     private final MessageService messageService;
     private final MessageRepository messageRepository;
     private final ChatbotEngineService chatbotEngineService;
+    private final OAuthService oAuthService;
 
     /**
      * Handle a text message (Instagram or Facebook plain-text).
@@ -53,6 +54,10 @@ public class MessageHandlerService {
             return;
         }
         Business business = businessOpt.get();
+        if (business.getStatus() != Business.Status.ACTIVE) {
+            log.warn("Ignoring message for suspended business: {}", business.getId());
+            return;
+        }
 
         // 2. Find or create customer
         Customer customer = customerService.findOrCreateCustomer(senderId, business);
@@ -102,6 +107,7 @@ public class MessageHandlerService {
 
     private void handleLegacyFlowStep(Conversation conversation, Customer customer,
                                        Business business, String messageText, String senderId) {
+        String accessToken = oAuthService.getDecryptedAccessToken(business);
         FlowStep currentStep = conversation.getCurrentStep();
         if (currentStep == null) {
             log.warn("No current step for conversation: {}", conversation.getId());
@@ -120,8 +126,8 @@ public class MessageHandlerService {
             } else {
                 String errorMsg = currentStep.getErrorMessage() != null
                         ? currentStep.getErrorMessage() : "Invalid input. Please try again.";
-                if (business.getAccessToken() != null) {
-                    messageService.sendMessage(senderId, errorMsg, business.getAccessToken());
+                if (accessToken != null) {
+                    messageService.sendMessage(senderId, errorMsg, accessToken);
                     saveMessage(conversation, customer, business, errorMsg, Message.Direction.OUTBOUND);
                 }
                 return;
@@ -131,15 +137,15 @@ public class MessageHandlerService {
         FlowStep nextStep = currentStep.getNextStep();
         if (nextStep != null) {
             conversationService.updateConversationStep(conversation, nextStep);
-            if (business.getAccessToken() != null) {
-                messageService.sendMessage(senderId, nextStep.getMessageTemplate(), business.getAccessToken());
+            if (accessToken != null) {
+                messageService.sendMessage(senderId, nextStep.getMessageTemplate(), accessToken);
                 saveMessage(conversation, customer, business, nextStep.getMessageTemplate(), Message.Direction.OUTBOUND);
             }
         } else {
             conversationService.completeConversation(conversation);
             String completionMsg = "Thank you! Your information has been recorded.";
-            if (business.getAccessToken() != null) {
-                messageService.sendMessage(senderId, completionMsg, business.getAccessToken());
+            if (accessToken != null) {
+                messageService.sendMessage(senderId, completionMsg, accessToken);
                 saveMessage(conversation, customer, business, completionMsg, Message.Direction.OUTBOUND);
             }
             log.info("Conversation {} completed for customer {}", conversation.getId(), customer.getId());

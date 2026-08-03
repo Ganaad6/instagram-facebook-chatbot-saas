@@ -42,6 +42,12 @@ public class Business {
     @Column(name = "webhook_verify_token")
     private String webhookVerifyToken;
 
+    @Column(name = "api_key_hash", unique = true)
+    private String apiKeyHash;
+
+    @Column(name = "api_key_created_at")
+    private LocalDateTime apiKeyCreatedAt;
+
     @Column(name = "notification_webhook_url", columnDefinition = "TEXT")
     private String notificationWebhookUrl;
 

@@ -35,13 +35,14 @@ public class ChatbotEngineService {
     private final OrderService orderService;
     private final OrderNotificationService orderNotificationService;
     private final MetaReplyService metaReplyService;
+    private final OAuthService oAuthService;
 
     @Transactional
     public void process(Conversation conversation, String userInput, String platform) {
         Business business = conversation.getBusiness();
         Customer customer = conversation.getCustomer();
         String senderId = customer.getInstagramUserId();
-        String token = business.getAccessToken();
+        String token = oAuthService.getDecryptedAccessToken(business);
 
         Conversation.State state = conversation.getState();
         log.debug("Processing state={} input='{}' platform={}", state, userInput, platform);

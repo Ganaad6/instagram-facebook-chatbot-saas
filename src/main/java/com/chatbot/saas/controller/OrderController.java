@@ -3,6 +3,7 @@ package com.chatbot.saas.controller;
 import com.chatbot.saas.dto.request.UpdateOrderStatusRequest;
 import com.chatbot.saas.dto.response.OrderResponse;
 import com.chatbot.saas.entity.Order;
+import com.chatbot.saas.security.TenantContext;
 import com.chatbot.saas.service.OrderService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -23,6 +24,7 @@ import java.util.List;
 public class OrderController {
 
     private final OrderService orderService;
+    private final TenantContext tenantContext;
 
     @GetMapping
     public ResponseEntity<Page<OrderResponse>> getOrders(
@@ -30,6 +32,7 @@ public class OrderController {
             @RequestParam(required = false) String status,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size) {
+        tenantContext.assertAccess(businessId);
         return ResponseEntity.ok(orderService.getOrdersByBusiness(businessId, status, page, size));
     }
 
@@ -37,6 +40,7 @@ public class OrderController {
     public ResponseEntity<OrderResponse> getOrder(
             @PathVariable Long businessId,
             @PathVariable Long id) {
+        tenantContext.assertAccess(businessId);
         return ResponseEntity.ok(orderService.getOrderById(businessId, id));
     }
 
@@ -45,6 +49,7 @@ public class OrderController {
             @PathVariable Long businessId,
             @PathVariable Long id,
             @Valid @RequestBody UpdateOrderStatusRequest request) {
+        tenantContext.assertAccess(businessId);
         return ResponseEntity.ok(orderService.updateOrderStatus(businessId, id, request.getStatus()));
     }
 
@@ -54,6 +59,7 @@ public class OrderController {
             @RequestParam(defaultValue = "csv") String format,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to) {
+        tenantContext.assertAccess(businessId);
 
         LocalDateTime fromDt = from != null ? from.atStartOfDay() : LocalDate.now().minusDays(30).atStartOfDay();
         LocalDateTime toDt = to != null ? to.plusDays(1).atStartOfDay() : LocalDateTime.now();

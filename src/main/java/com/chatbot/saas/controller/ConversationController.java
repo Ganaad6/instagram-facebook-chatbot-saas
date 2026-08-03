@@ -2,6 +2,7 @@ package com.chatbot.saas.controller;
 
 import com.chatbot.saas.dto.response.ConversationDataResponse;
 import com.chatbot.saas.dto.response.ConversationResponse;
+import com.chatbot.saas.security.TenantContext;
 import com.chatbot.saas.service.ConversationDataService;
 import com.chatbot.saas.service.ConversationService;
 import lombok.RequiredArgsConstructor;
@@ -17,9 +18,11 @@ public class ConversationController {
 
     private final ConversationService conversationService;
     private final ConversationDataService conversationDataService;
+    private final TenantContext tenantContext;
 
     @GetMapping
     public ResponseEntity<List<ConversationResponse>> getConversations(@RequestParam Long businessId) {
+        tenantContext.assertAccess(businessId);
         return ResponseEntity.ok(conversationService.getConversationsByBusiness(businessId));
     }
 

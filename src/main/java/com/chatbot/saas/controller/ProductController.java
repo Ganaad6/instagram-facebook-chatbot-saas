@@ -3,6 +3,7 @@ package com.chatbot.saas.controller;
 import com.chatbot.saas.dto.request.CreateProductRequest;
 import com.chatbot.saas.dto.request.UpdateProductRequest;
 import com.chatbot.saas.dto.response.ProductResponse;
+import com.chatbot.saas.security.TenantContext;
 import com.chatbot.saas.service.ProductService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -18,11 +19,13 @@ import java.util.List;
 public class ProductController {
 
     private final ProductService productService;
+    private final TenantContext tenantContext;
 
     @PostMapping
     public ResponseEntity<ProductResponse> createProduct(
             @PathVariable Long businessId,
             @Valid @RequestBody CreateProductRequest request) {
+        tenantContext.assertAccess(businessId);
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(productService.createProduct(businessId, request));
     }
@@ -31,6 +34,7 @@ public class ProductController {
     public ResponseEntity<List<ProductResponse>> getProducts(
             @PathVariable Long businessId,
             @RequestParam(required = false) Long categoryId) {
+        tenantContext.assertAccess(businessId);
         return ResponseEntity.ok(productService.getProductsByBusiness(businessId, categoryId));
     }
 
@@ -38,6 +42,7 @@ public class ProductController {
     public ResponseEntity<ProductResponse> getProduct(
             @PathVariable Long businessId,
             @PathVariable Long id) {
+        tenantContext.assertAccess(businessId);
         return ResponseEntity.ok(productService.getProductById(businessId, id));
     }
 
@@ -46,6 +51,7 @@ public class ProductController {
             @PathVariable Long businessId,
             @PathVariable Long id,
             @RequestBody UpdateProductRequest request) {
+        tenantContext.assertAccess(businessId);
         return ResponseEntity.ok(productService.updateProduct(businessId, id, request));
     }
 
@@ -53,6 +59,7 @@ public class ProductController {
     public ResponseEntity<Void> deleteProduct(
             @PathVariable Long businessId,
             @PathVariable Long id) {
+        tenantContext.assertAccess(businessId);
         productService.deleteProduct(businessId, id);
         return ResponseEntity.noContent().build();
     }

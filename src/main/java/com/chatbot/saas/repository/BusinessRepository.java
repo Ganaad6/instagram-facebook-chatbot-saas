@@ -11,4 +11,5 @@ public interface BusinessRepository extends JpaRepository<Business, Long> {
     Optional<Business> findByInstagramAccountId(String instagramAccountId);
     Optional<Business> findByFacebookPageId(String facebookPageId);
     Optional<Business> findByEmail(String email);
+    Optional<Business> findByApiKeyHash(String apiKeyHash);
 }

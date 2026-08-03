@@ -14,6 +14,7 @@ import com.chatbot.saas.exception.FlowNotFoundException;
 import com.chatbot.saas.repository.BusinessRepository;
 import com.chatbot.saas.repository.ChatbotFlowRepository;
 import com.chatbot.saas.repository.FlowStepRepository;
+import com.chatbot.saas.security.TenantContext;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -30,6 +31,7 @@ public class ChatbotFlowService {
     private final ChatbotFlowRepository chatbotFlowRepository;
     private final FlowStepRepository flowStepRepository;
     private final BusinessRepository businessRepository;
+    private final TenantContext tenantContext;
 
     @Transactional
     public FlowResponse createFlow(CreateFlowRequest request) {
@@ -54,6 +56,7 @@ public class ChatbotFlowService {
     @Transactional
     public FlowResponse updateFlow(Long id, UpdateFlowRequest request) {
         ChatbotFlow flow = findFlowById(id);
+        tenantContext.assertAccess(flow.getBusiness().getId());
         if (request.getName() != null) flow.setName(request.getName());
         return FlowResponse.from(chatbotFlowRepository.save(flow));
     }
@@ -61,12 +64,14 @@ public class ChatbotFlowService {
     @Transactional
     public void deleteFlow(Long id) {
         ChatbotFlow flow = findFlowById(id);
+        tenantContext.assertAccess(flow.getBusiness().getId());
         chatbotFlowRepository.delete(flow);
     }
 
     @Transactional
     public FlowStepResponse addStep(Long flowId, CreateFlowStepRequest request) {
         ChatbotFlow flow = findFlowById(flowId);
+        tenantContext.assertAccess(flow.getBusiness().getId());
         FlowStep.ValidationType validationType = null;
         if (request.getValidationType() != null) {
             try {
@@ -93,6 +98,7 @@ public class ChatbotFlowService {
     public FlowStepResponse updateStep(Long stepId, UpdateFlowStepRequest request) {
         FlowStep step = flowStepRepository.findById(stepId)
                 .orElseThrow(() -> new FlowNotFoundException("Step not found with id: " + stepId));
+        tenantContext.assertAccess(step.getFlow().getBusiness().getId());
         if (request.getStepOrder() != null) step.setStepOrder(request.getStepOrder());
         if (request.getStepKey() != null) step.setStepKey(request.getStepKey());
         if (request.getMessageTemplate() != null) step.setMessageTemplate(request.getMessageTemplate());
@@ -114,12 +120,14 @@ public class ChatbotFlowService {
     public void deleteStep(Long stepId) {
         FlowStep step = flowStepRepository.findById(stepId)
                 .orElseThrow(() -> new FlowNotFoundException("Step not found with id: " + stepId));
+        tenantContext.assertAccess(step.getFlow().getBusiness().getId());
         flowStepRepository.delete(step);
     }
 
     @Transactional
     public FlowResponse activateFlow(Long flowId) {
         ChatbotFlow flow = findFlowById(flowId);
+        tenantContext.assertAccess(flow.getBusiness().getId());
         chatbotFlowRepository.deactivateAllExcept(flow.getBusiness().getId(), flowId);
         flow.setIsActive(true);
         return FlowResponse.from(chatbotFlowRepository.save(flow));

@@ -3,6 +3,7 @@ package com.chatbot.saas.controller;
 import com.chatbot.saas.dto.request.CreateCategoryRequest;
 import com.chatbot.saas.dto.request.UpdateCategoryRequest;
 import com.chatbot.saas.dto.response.CategoryResponse;
+import com.chatbot.saas.security.TenantContext;
 import com.chatbot.saas.service.CategoryService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -18,17 +19,20 @@ import java.util.List;
 public class CategoryController {
 
     private final CategoryService categoryService;
+    private final TenantContext tenantContext;
 
     @PostMapping
     public ResponseEntity<CategoryResponse> createCategory(
             @PathVariable Long businessId,
             @Valid @RequestBody CreateCategoryRequest request) {
+        tenantContext.assertAccess(businessId);
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(categoryService.createCategory(businessId, request));
     }
 
     @GetMapping
     public ResponseEntity<List<CategoryResponse>> getCategories(@PathVariable Long businessId) {
+        tenantContext.assertAccess(businessId);
         return ResponseEntity.ok(categoryService.getCategoriesByBusiness(businessId));
     }
 
@@ -37,6 +41,7 @@ public class CategoryController {
             @PathVariable Long businessId,
             @PathVariable Long id,
             @RequestBody UpdateCategoryRequest request) {
+        tenantContext.assertAccess(businessId);
         return ResponseEntity.ok(categoryService.updateCategory(businessId, id, request));
     }
 
@@ -44,6 +49,7 @@ public class CategoryController {
     public ResponseEntity<Void> deleteCategory(
             @PathVariable Long businessId,
             @PathVariable Long id) {
+        tenantContext.assertAccess(businessId);
         categoryService.deleteCategory(businessId, id);
         return ResponseEntity.noContent().build();
     }

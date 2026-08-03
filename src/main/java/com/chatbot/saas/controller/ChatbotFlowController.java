@@ -6,6 +6,7 @@ import com.chatbot.saas.dto.request.UpdateFlowRequest;
 import com.chatbot.saas.dto.request.UpdateFlowStepRequest;
 import com.chatbot.saas.dto.response.FlowResponse;
 import com.chatbot.saas.dto.response.FlowStepResponse;
+import com.chatbot.saas.security.TenantContext;
 import com.chatbot.saas.service.ChatbotFlowService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -21,14 +22,17 @@ import java.util.List;
 public class ChatbotFlowController {
 
     private final ChatbotFlowService chatbotFlowService;
+    private final TenantContext tenantContext;
 
     @PostMapping
     public ResponseEntity<FlowResponse> createFlow(@Valid @RequestBody CreateFlowRequest request) {
+        tenantContext.assertAccess(request.getBusinessId());
         return ResponseEntity.status(HttpStatus.CREATED).body(chatbotFlowService.createFlow(request));
     }
 
     @GetMapping
     public ResponseEntity<List<FlowResponse>> getFlowsByBusiness(@RequestParam Long businessId) {
+        tenantContext.assertAccess(businessId);
         return ResponseEntity.ok(chatbotFlowService.getFlowsByBusiness(businessId));
     }
 

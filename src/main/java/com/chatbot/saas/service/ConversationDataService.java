@@ -19,6 +19,7 @@ import java.util.stream.Collectors;
 public class ConversationDataService {
 
     private final ConversationDataRepository conversationDataRepository;
+    private final ConversationService conversationService;
 
     @Transactional
     public void saveData(Conversation conversation, String fieldName, String fieldValue) {
@@ -34,6 +35,7 @@ public class ConversationDataService {
 
     @Transactional(readOnly = true)
     public List<ConversationDataResponse> getDataByConversation(Long conversationId) {
+        conversationService.getConversationEntityById(conversationId);
         return conversationDataRepository.findAllByConversationId(conversationId)
                 .stream()
                 .map(ConversationDataResponse::from)
