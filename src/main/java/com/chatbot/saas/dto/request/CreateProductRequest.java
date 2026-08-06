@@ -6,6 +6,7 @@ import jakarta.validation.constraints.NotNull;
 import lombok.Data;
 
 import java.math.BigDecimal;
+import java.util.UUID;
 
 @Data
 public class CreateProductRequest {
@@ -21,4 +22,6 @@ public class CreateProductRequest {
     private BigDecimal price;
 
     private String description;
+
+    private UUID imageFileId;
 }

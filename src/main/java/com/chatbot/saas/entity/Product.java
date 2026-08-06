@@ -5,6 +5,7 @@ import lombok.*;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.UUID;
 
 @Entity
 @Table(name = "products")
@@ -38,6 +39,9 @@ public class Product {
     @Column(name = "is_active", nullable = false)
     @Builder.Default
     private Boolean isActive = true;
+
+    @Column(name = "image_file_id")
+    private UUID imageFileId;
 
     @Column(name = "created_at", nullable = false)
     private LocalDateTime createdAt;

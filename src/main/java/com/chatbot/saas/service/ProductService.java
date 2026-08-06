@@ -10,6 +10,7 @@ import com.chatbot.saas.exception.ProductNotFoundException;
 import com.chatbot.saas.repository.ProductRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -25,6 +26,9 @@ public class ProductService {
     private final BusinessService businessService;
     private final CategoryService categoryService;
 
+    @Value("${directus.public-url:}")
+    private String directusPublicUrl;
+
     @Transactional
     public ProductResponse createProduct(Long businessId, CreateProductRequest request) {
         Business business = businessService.findBusinessById(businessId);
@@ -36,8 +40,9 @@ public class ProductService {
                 .price(request.getPrice())
                 .description(request.getDescription())
                 .isActive(true)
+                .imageFileId(request.getImageFileId())
                 .build();
-        return ProductResponse.from(productRepository.save(product));
+        return ProductResponse.from(productRepository.save(product), directusPublicUrl);
     }
 
     @Transactional(readOnly = true)
@@ -45,12 +50,12 @@ public class ProductService {
         List<Product> products = categoryId != null
                 ? productRepository.findAllByBusinessIdAndCategoryIdAndIsActiveTrueOrderByNameAsc(businessId, categoryId)
                 : productRepository.findAllByBusinessIdOrderByNameAsc(businessId);
-        return products.stream().map(ProductResponse::from).collect(Collectors.toList());
+        return products.stream().map(p -> ProductResponse.from(p, directusPublicUrl)).collect(Collectors.toList());
     }
 
     @Transactional(readOnly = true)
     public ProductResponse getProductById(Long businessId, Long productId) {
-        return ProductResponse.from(findProductByIdAndBusiness(productId, businessId));
+        return ProductResponse.from(findProductByIdAndBusiness(productId, businessId), directusPublicUrl);
     }
 
     @Transactional
@@ -60,11 +65,12 @@ public class ProductService {
         if (request.getPrice() != null) product.setPrice(request.getPrice());
         if (request.getDescription() != null) product.setDescription(request.getDescription());
         if (request.getIsActive() != null) product.setIsActive(request.getIsActive());
+        if (request.getImageFileId() != null) product.setImageFileId(request.getImageFileId());
         if (request.getCategoryId() != null) {
             Category category = categoryService.findCategoryByIdAndBusiness(request.getCategoryId(), businessId);
             product.setCategory(category);
         }
-        return ProductResponse.from(productRepository.save(product));
+        return ProductResponse.from(productRepository.save(product), directusPublicUrl);
     }
 
     @Transactional

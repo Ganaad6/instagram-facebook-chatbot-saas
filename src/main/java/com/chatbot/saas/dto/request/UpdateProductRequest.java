@@ -3,6 +3,7 @@ package com.chatbot.saas.dto.request;
 import lombok.Data;
 
 import java.math.BigDecimal;
+import java.util.UUID;
 
 @Data
 public class UpdateProductRequest {
@@ -11,4 +12,5 @@ public class UpdateProductRequest {
     private BigDecimal price;
     private String description;
     private Boolean isActive;
+    private UUID imageFileId;
 }

@@ -94,3 +94,42 @@ Fly.io, AWS, etc.) without cloud lock-in.
 
 `.github/workflows/ci.yml` runs `mvn -B verify` (build + full test suite) on every push/PR to
 `main`.
+
+## Self-serve catalog management (Directus)
+
+Shop owners can add their own products - name, price, description, and a **photo** - through
+[Directus](https://directus.io), an open-source admin UI, instead of you managing their catalog
+by hand via the API. `docker-compose.yml` already runs Directus as a second service pointed at
+the same Postgres database the app uses, so no extra database or sync step is needed: whatever a
+shop owner saves in Directus is exactly what the chatbot reads on the next message, including the
+existing "in stock" toggle (the products' `isActive` field).
+
+This is a one-time setup per deployment (not per shop) - do it once after your first
+`docker compose up -d --build`:
+
+1. Open Directus at `DIRECTUS_PUBLIC_URL` (default `http://localhost:8055`) and log in with
+   `DIRECTUS_ADMIN_EMAIL` / `DIRECTUS_ADMIN_PASSWORD`.
+2. **Settings → Data Model → Create Collection**, and add `businesses`, `categories`, and
+   `products` as collections **from the existing tables** (Directus will detect them since it's
+   the same database).
+3. On the `products` collection, find the existing `image_file_id` column and click
+   **Manage Field** (not "Create Field" - that would try to add a duplicate column) and set its
+   interface to **Image**. This turns it into a real drag-and-drop upload field backed by
+   Directus's own file storage.
+4. **Settings → Data Model → Directus Users**, add a custom field `business_id` (type Integer).
+   This is what scopes each shop owner's login to only their own products.
+5. **Settings → Roles & Permissions → Create Role** ("Shop Owner"). Grant Read/Create/Update on
+   `products` and `categories`, each with the custom filter
+   `business_id equals $CURRENT_USER.business_id` - this is what stops shop A from seeing or
+   editing shop B's catalog.
+6. **Settings → Files → (product images folder) → Permissions**, and give the **Public** role
+   read access to it. Meta's servers fetch the image URL directly from the open internet with no
+   auth, so the images themselves must be publicly readable (this does not expose anything else
+   in Directus).
+7. For each shop, create one Directus user with the **Shop Owner** role and their `business_id`
+   set, and send them the Directus URL + their login. That's their entire "add my own products"
+   experience - no app install, no API key needed on their end.
+
+The chatbot resolves each product's photo as `${DIRECTUS_PUBLIC_URL}/assets/{image_file_id}` and
+sends it as an image message immediately before the existing product menu, so this requires no
+change to how customers interact with the bot.

@@ -34,6 +34,21 @@ public class MetaReplyService {
     }
 
     /**
+     * Send an image attachment message (product photo).
+     */
+    public void sendImage(String recipientId, String imageUrl, String accessToken) {
+        log.debug("Sending image to {}", recipientId);
+        Map<String, Object> body = Map.of(
+                "recipient", Map.of("id", recipientId),
+                "message", Map.of("attachment", Map.of(
+                        "type", "image",
+                        "payload", Map.of("url", imageUrl, "is_reusable", true)
+                ))
+        );
+        doPost(body, accessToken, recipientId);
+    }
+
+    /**
      * Send a message with quick-reply buttons (Facebook Messenger only).
      * Each option is a Map with "title" and "payload".
      */

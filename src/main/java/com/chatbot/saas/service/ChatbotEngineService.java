@@ -1,9 +1,11 @@
 package com.chatbot.saas.service;
 
+import com.chatbot.saas.dto.response.ProductResponse;
 import com.chatbot.saas.entity.*;
 import com.chatbot.saas.repository.ConversationRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
@@ -36,6 +38,9 @@ public class ChatbotEngineService {
     private final OrderNotificationService orderNotificationService;
     private final MetaReplyService metaReplyService;
     private final OAuthService oAuthService;
+
+    @Value("${directus.public-url:}")
+    private String directusPublicUrl;
 
     @Transactional
     public void process(Conversation conversation, String userInput, String platform) {
@@ -219,6 +224,13 @@ public class ChatbotEngineService {
             metaReplyService.sendText(senderId, "Энэ ангиллд бараа байхгүй байна.", token);
             return;
         }
+        for (Product product : products) {
+            String imageUrl = ProductResponse.resolveImageUrl(product.getImageFileId(), directusPublicUrl);
+            if (imageUrl != null) {
+                metaReplyService.sendImage(senderId, imageUrl, token);
+            }
+        }
+
         List<String> items = products.stream()
                 .map(p -> String.format("%s — ₮%,.0f", p.getName(), p.getPrice().doubleValue()))
                 .collect(Collectors.toList());
