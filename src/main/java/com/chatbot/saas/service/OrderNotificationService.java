@@ -23,15 +23,18 @@ public class OrderNotificationService {
             return;
         }
         try {
-            Map<String, Object> payload = Map.of(
-                    "event", "NEW_ORDER",
-                    "orderId", order.getId(),
-                    "businessId", business.getId(),
-                    "product", order.getProduct().getName(),
-                    "customerName", order.getCustomerName() != null ? order.getCustomerName() : "",
-                    "phone", order.getPhone() != null ? order.getPhone() : "",
-                    "address", order.getAddress() != null ? order.getAddress() : "",
-                    "status", order.getStatus().name()
+            Map<String, Object> payload = Map.ofEntries(
+                    Map.entry("event", "NEW_ORDER"),
+                    Map.entry("orderId", order.getId()),
+                    Map.entry("businessId", business.getId()),
+                    Map.entry("product", order.getProductName()),
+                    Map.entry("quantity", order.getQuantity()),
+                    Map.entry("unitPrice", order.getUnitPrice()),
+                    Map.entry("totalAmount", order.getTotalAmount()),
+                    Map.entry("customerName", order.getCustomerName() != null ? order.getCustomerName() : ""),
+                    Map.entry("phone", order.getPhone() != null ? order.getPhone() : ""),
+                    Map.entry("address", order.getAddress() != null ? order.getAddress() : ""),
+                    Map.entry("status", order.getStatus().name())
             );
             webClientBuilder.build()
                     .post()

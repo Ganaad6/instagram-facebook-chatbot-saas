@@ -62,9 +62,20 @@ changes their Facebook password, send them a new connect link.
 
 All require `businessId` in the path to match the authenticated API key's business.
 
+Orders carry a snapshot of what was bought: `productName`, `unitPrice`, `quantity` and
+`totalAmount` are fixed at order time, so later product edits don't change past orders
+(`productPrice` is kept as an alias of `unitPrice`). The CSV export
+(`/orders/export`) includes the same columns. The analytics summary includes `totalRevenue`
+(sum of non-cancelled orders) and `totalQuantity` per top product.
+
+The order-notification webhook sends `{"event": "NEW_ORDER", "orderId", "businessId",
+"product", "quantity", "unitPrice", "totalAmount", "customerName", "phone", "address", "status"}`.
+
 ## Conversations
 - `GET /api/conversations?businessId=` - List conversations
 - `GET /api/conversations/{id}` - Get conversation (must belong to your business)
+- `GET /api/conversations/{id}/messages` - Full transcript, oldest first: customer messages
+  (`INBOUND`) and the bot's delivered replies (`OUTBOUND`)
 - `GET /api/conversations/{id}/data` - Get conversation data
 
 ## Customers

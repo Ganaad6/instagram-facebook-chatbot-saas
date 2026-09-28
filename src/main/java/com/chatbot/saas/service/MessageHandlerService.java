@@ -2,7 +2,6 @@ package com.chatbot.saas.service;
 
 import com.chatbot.saas.entity.*;
 import com.chatbot.saas.repository.ChatbotFlowRepository;
-import com.chatbot.saas.repository.MessageRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -13,7 +12,6 @@ import org.springframework.util.StringUtils;
 
 import java.time.LocalDateTime;
 import java.util.Optional;
-import java.util.UUID;
 
 @Service
 @RequiredArgsConstructor
@@ -27,7 +25,7 @@ public class MessageHandlerService {
     private final ConversationDataService conversationDataService;
     private final ValidationService validationService;
     private final MetaReplyService metaReplyService;
-    private final MessageRepository messageRepository;
+    private final MessageLogService messageLogService;
     private final ChatbotEngineService chatbotEngineService;
     private final OAuthService oAuthService;
 
@@ -71,8 +69,7 @@ public class MessageHandlerService {
         Customer customer = customerService.findOrCreateAndLock(business, inbound.senderId(), inbound.platform());
 
         // 3. Skip webhook redeliveries (checked under the customer lock, so no race)
-        if (inbound.messageId() != null
-                && messageRepository.existsByBusinessIdAndMessageId(business.getId(), inbound.messageId())) {
+        if (messageLogService.isAlreadyRecorded(business.getId(), inbound.messageId())) {
             log.info("Skipping already-processed message {}", inbound.messageId());
             return;
         }
@@ -83,7 +80,7 @@ public class MessageHandlerService {
 
         // 5. Persist inbound message
         String content = StringUtils.hasText(inbound.text()) ? inbound.text() : "[attachment]";
-        saveMessage(conversation, customer, business, inbound.messageId(), content, Message.Direction.INBOUND);
+        messageLogService.recordInbound(conversation, inbound.messageId(), content);
 
         // 6. Route to appropriate engine
         if (conversation.getFlow() != null) {
@@ -142,10 +139,7 @@ public class MessageHandlerService {
             } else {
                 String errorMsg = currentStep.getErrorMessage() != null
                         ? currentStep.getErrorMessage() : "Invalid input. Please try again.";
-                if (accessToken != null) {
-                    metaReplyService.sendText(senderId, errorMsg, accessToken);
-                    saveMessage(conversation, customer, business, null, errorMsg, Message.Direction.OUTBOUND);
-                }
+                sendLegacyReply(conversation, senderId, errorMsg, accessToken);
                 return;
             }
         }
@@ -153,35 +147,22 @@ public class MessageHandlerService {
         FlowStep nextStep = currentStep.getNextStep();
         if (nextStep != null) {
             conversationService.updateConversationStep(conversation, nextStep);
-            if (accessToken != null) {
-                metaReplyService.sendText(senderId, nextStep.getMessageTemplate(), accessToken);
-                saveMessage(conversation, customer, business, null, nextStep.getMessageTemplate(), Message.Direction.OUTBOUND);
-            }
+            sendLegacyReply(conversation, senderId, nextStep.getMessageTemplate(), accessToken);
         } else {
             conversationService.completeConversation(conversation);
             String completionMsg = "Thank you! Your information has been recorded.";
-            if (accessToken != null) {
-                metaReplyService.sendText(senderId, completionMsg, accessToken);
-                saveMessage(conversation, customer, business, null, completionMsg, Message.Direction.OUTBOUND);
-            }
+            sendLegacyReply(conversation, senderId, completionMsg, accessToken);
             log.info("Conversation {} completed for customer {}", conversation.getId(), customer.getId());
         }
     }
 
     // ─── Helpers ──────────────────────────────────────────────────────────────
 
-    private void saveMessage(Conversation conversation, Customer customer, Business business,
-                             String messageId, String content, Message.Direction direction) {
-        Message message = Message.builder()
-                .conversation(conversation)
-                .customer(customer)
-                .business(business)
-                .messageId(messageId != null ? messageId : UUID.randomUUID().toString())
-                .direction(direction)
-                .content(content)
-                .sentAt(LocalDateTime.now())
-                .createdAt(LocalDateTime.now())
-                .build();
-        messageRepository.save(message);
+    private void sendLegacyReply(Conversation conversation, String senderId, String text, String accessToken) {
+        if (accessToken == null) {
+            return;
+        }
+        String messageId = metaReplyService.sendText(senderId, text, accessToken);
+        messageLogService.recordOutbound(conversation, messageId, text);
     }
 }

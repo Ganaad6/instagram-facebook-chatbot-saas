@@ -18,6 +18,7 @@ import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
@@ -31,13 +32,20 @@ public class OrderService {
     private final OrderRepository orderRepository;
 
     @Transactional
-    public Order createOrder(Business business, Customer customer, Product product,
+    public Order createOrder(Business business, Customer customer, Product product, int quantity,
                              String customerName, String phone, String address,
                              Order.Platform platform) {
+        if (quantity < 1) {
+            throw new IllegalArgumentException("Quantity must be at least 1");
+        }
         Order order = Order.builder()
                 .business(business)
                 .customer(customer)
                 .product(product)
+                .productName(product.getName())
+                .unitPrice(product.getPrice())
+                .quantity(quantity)
+                .totalAmount(product.getPrice().multiply(BigDecimal.valueOf(quantity)))
                 .customerName(customerName)
                 .phone(phone)
                 .address(address)
@@ -91,6 +99,7 @@ public class OrderService {
                 .map(row -> AnalyticsSummaryResponse.TopProductResponse.builder()
                         .productName((String) row[0])
                         .orderCount(((Number) row[1]).longValue())
+                        .totalQuantity(((Number) row[2]).longValue())
                         .build())
                 .collect(Collectors.toList());
 
@@ -98,6 +107,7 @@ public class OrderService {
                 .totalOrders(total)
                 .pendingOrders(pending)
                 .todayOrders(today)
+                .totalRevenue(orderRepository.sumRevenueByBusinessId(businessId))
                 .topProducts(topProducts)
                 .build();
     }

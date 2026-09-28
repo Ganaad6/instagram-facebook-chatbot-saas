@@ -3,6 +3,7 @@ package com.chatbot.saas.entity;
 import jakarta.persistence.*;
 import lombok.*;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
 @Entity(name = "CustomerOrder")
@@ -36,6 +37,21 @@ public class Order {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "product_id", nullable = false)
     private Product product;
+
+    /** Snapshot of the product name at order time; unaffected by later product edits. */
+    @Column(name = "product_name", nullable = false)
+    private String productName;
+
+    /** Snapshot of the product price at order time. */
+    @Column(name = "unit_price", nullable = false, precision = 12, scale = 2)
+    private BigDecimal unitPrice;
+
+    @Column(nullable = false)
+    @Builder.Default
+    private Integer quantity = 1;
+
+    @Column(name = "total_amount", nullable = false, precision = 12, scale = 2)
+    private BigDecimal totalAmount;
 
     @Column(name = "customer_name")
     private String customerName;

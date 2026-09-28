@@ -29,22 +29,30 @@ public class MetaReplyService {
 
     private final WebClient metaWebClient;
 
+    /** Messenger limits: at most 13 quick replies, each title at most 20 characters. */
+    private static final int MAX_QUICK_REPLIES = 13;
+    private static final int MAX_QUICK_REPLY_TITLE = 20;
+
     /**
      * Send a plain text message.
+     *
+     * @return Meta's message id, or null if the message could not be delivered
      */
-    public void sendText(String recipientId, String text, String accessToken) {
+    public String sendText(String recipientId, String text, String accessToken) {
         log.debug("Sending text to {}", recipientId);
         Map<String, Object> body = Map.of(
                 "recipient", Map.of("id", recipientId),
                 "message", Map.of("text", text)
         );
-        doPost(body, accessToken, recipientId);
+        return doPost(body, accessToken, recipientId);
     }
 
     /**
      * Send an image attachment message (product photo).
+     *
+     * @return Meta's message id, or null if the message could not be delivered
      */
-    public void sendImage(String recipientId, String imageUrl, String accessToken) {
+    public String sendImage(String recipientId, String imageUrl, String accessToken) {
         log.debug("Sending image to {}", recipientId);
         Map<String, Object> body = Map.of(
                 "recipient", Map.of("id", recipientId),
@@ -53,21 +61,23 @@ public class MetaReplyService {
                         "payload", Map.of("url", imageUrl, "is_reusable", true)
                 ))
         );
-        doPost(body, accessToken, recipientId);
+        return doPost(body, accessToken, recipientId);
     }
 
     /**
      * Send a message with quick-reply buttons (Facebook Messenger only).
-     * Each option is a Map with "title" and "payload".
+     * Each option is a Map with "title" and "payload"; titles are truncated to Messenger's limit.
+     *
+     * @return Meta's message id, or null if the message could not be delivered
      */
-    public void sendWithQuickReplies(String recipientId, String text,
-                                     List<Map<String, String>> options, String accessToken) {
+    public String sendWithQuickReplies(String recipientId, String text,
+                                       List<Map<String, String>> options, String accessToken) {
         log.debug("Sending quick-replies to {}", recipientId);
         List<Map<String, Object>> quickReplies = new ArrayList<>();
         for (Map<String, String> opt : options) {
             Map<String, Object> qr = new HashMap<>();
             qr.put("content_type", "text");
-            qr.put("title", opt.get("title"));
+            qr.put("title", truncate(opt.get("title"), MAX_QUICK_REPLY_TITLE));
             qr.put("payload", opt.get("payload"));
             quickReplies.add(qr);
         }
@@ -79,34 +89,49 @@ public class MetaReplyService {
                 "recipient", Map.of("id", recipientId),
                 "message", message
         );
-        doPost(body, accessToken, recipientId);
+        return doPost(body, accessToken, recipientId);
     }
 
     /**
-     * Send message appropriate for the platform.
-     * Instagram → plain numbered text. Facebook → quick-reply buttons (if options provided).
+     * Send a numbered menu. The numbered list is always in the text, so full item names and
+     * prices are visible on both platforms; on Facebook, quick-reply buttons are added as a
+     * shortcut when the menu fits Messenger's limits. The customer answers with the number.
+     *
+     * @return Meta's message id, or null if the message could not be delivered
      */
-    public void sendMenuMessage(String recipientId, String platform, String introText,
-                                List<String> menuItems, String accessToken) {
-        if ("FACEBOOK".equalsIgnoreCase(platform)) {
+    public String sendMenuMessage(String recipientId, String platform, String introText,
+                                  List<String> menuItems, String accessToken) {
+        String text = renderMenuText(introText, menuItems);
+        if ("FACEBOOK".equalsIgnoreCase(platform) && menuItems.size() <= MAX_QUICK_REPLIES) {
             List<Map<String, String>> options = new ArrayList<>();
             for (int i = 0; i < menuItems.size(); i++) {
-                options.add(Map.of("title", menuItems.get(i), "payload", String.valueOf(i + 1)));
+                String number = String.valueOf(i + 1);
+                options.add(Map.of("title", number + ". " + menuItems.get(i), "payload", number));
             }
-            sendWithQuickReplies(recipientId, introText, options, accessToken);
-        } else {
-            // Instagram (and fallback): numbered text list
-            StringBuilder sb = new StringBuilder(introText).append("\n");
-            for (int i = 0; i < menuItems.size(); i++) {
-                sb.append(i + 1).append(". ").append(menuItems.get(i)).append("\n");
-            }
-            sendText(recipientId, sb.toString().trim(), accessToken);
+            return sendWithQuickReplies(recipientId, text, options, accessToken);
         }
+        return sendText(recipientId, text, accessToken);
     }
 
-    private void doPost(Map<String, Object> body, String accessToken, String recipientId) {
+    /** The menu as the customer sees it in text; also what gets recorded in the transcript. */
+    public static String renderMenuText(String introText, List<String> menuItems) {
+        StringBuilder sb = new StringBuilder(introText).append("\n");
+        for (int i = 0; i < menuItems.size(); i++) {
+            sb.append(i + 1).append(". ").append(menuItems.get(i)).append("\n");
+        }
+        return sb.toString().trim();
+    }
+
+    private static String truncate(String value, int max) {
+        if (value == null || value.length() <= max) {
+            return value;
+        }
+        return value.substring(0, max - 1) + "…";
+    }
+
+    private String doPost(Map<String, Object> body, String accessToken, String recipientId) {
         try {
-            metaWebClient.post()
+            Map<?, ?> response = metaWebClient.post()
                     .uri("/me/messages")
                     // Header rather than query param so the token never appears in logged URLs
                     .headers(h -> h.setBearerAuth(accessToken))
@@ -115,11 +140,14 @@ public class MetaReplyService {
                     .bodyToMono(Map.class)
                     .block(SEND_TIMEOUT);
             log.debug("Message sent to {}", recipientId);
+            Object messageId = response != null ? response.get("message_id") : null;
+            return messageId != null ? messageId.toString() : null;
         } catch (WebClientResponseException e) {
             // Don't fail the conversation over one undelivered message; the state is already saved
             log.error("Meta rejected message to {}: {} {}", recipientId, e.getStatusCode(), e.getResponseBodyAsString());
         } catch (Exception e) {
             log.error("Failed to send message to {}: {}", recipientId, e.getMessage());
         }
+        return null;
     }
 }

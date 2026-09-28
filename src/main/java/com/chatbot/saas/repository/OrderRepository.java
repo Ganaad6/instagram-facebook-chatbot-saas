@@ -29,8 +29,18 @@ public interface OrderRepository extends JpaRepository<Order, Long> {
 
     long countByBusinessIdAndCreatedAtBetween(Long businessId, LocalDateTime from, LocalDateTime to);
 
-    @Query("SELECT o.product.name, COUNT(o) as cnt FROM CustomerOrder o WHERE o.business.id = :businessId GROUP BY o.product.name ORDER BY COUNT(o) DESC")
+    @Query("SELECT o.productName, COUNT(o) as cnt, SUM(o.quantity) FROM CustomerOrder o WHERE o.business.id = :businessId GROUP BY o.productName ORDER BY COUNT(o) DESC")
     List<Object[]> findTopProductsByBusiness(@Param("businessId") Long businessId, Pageable pageable);
+
+    @Query("SELECT COALESCE(SUM(o.totalAmount), 0) FROM CustomerOrder o "
+            + "WHERE o.business.id = :businessId AND o.status <> :excluded")
+    java.math.BigDecimal sumTotalAmountExcludingStatus(@Param("businessId") Long businessId,
+                                                       @Param("excluded") Order.Status excluded);
+
+    /** Total value of all non-cancelled orders. */
+    default java.math.BigDecimal sumRevenueByBusinessId(Long businessId) {
+        return sumTotalAmountExcludingStatus(businessId, Order.Status.CANCELLED);
+    }
 
     @Query(value = "SELECT DATE(created_at) as day, COUNT(*) as cnt FROM orders WHERE business_id = :businessId AND created_at BETWEEN :from AND :to GROUP BY day ORDER BY day",
            nativeQuery = true)

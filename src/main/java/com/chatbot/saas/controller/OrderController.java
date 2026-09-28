@@ -68,11 +68,14 @@ public class OrderController {
 
         StringWriter sw = new StringWriter();
         PrintWriter pw = new PrintWriter(sw);
-        pw.println("id,product,customerName,phone,address,status,platform,createdAt");
+        pw.println("id,product,quantity,unitPrice,totalAmount,customerName,phone,address,status,platform,createdAt");
         for (Order o : orders) {
-            pw.printf("%d,\"%s\",\"%s\",\"%s\",\"%s\",%s,%s,%s%n",
+            pw.printf("%d,\"%s\",%d,%s,%s,\"%s\",\"%s\",\"%s\",%s,%s,%s%n",
                     o.getId(),
-                    escape(o.getProduct().getName()),
+                    escape(o.getProductName()),
+                    o.getQuantity(),
+                    o.getUnitPrice().toPlainString(),
+                    o.getTotalAmount().toPlainString(),
                     escape(o.getCustomerName()),
                     escape(o.getPhone()),
                     escape(o.getAddress()),
@@ -87,8 +90,17 @@ public class OrderController {
                 .body(sw.toString());
     }
 
-    private String escape(String s) {
+    /**
+     * Quotes a value for CSV. Names/addresses are typed by chat customers, so a leading
+     * =, +, -, @ (or tab/CR) is neutralized with an apostrophe - otherwise a spreadsheet would
+     * execute it as a formula when the shop opens the export.
+     */
+    static String escape(String s) {
         if (s == null) return "";
-        return s.replace("\"", "\"\"");
+        String value = s;
+        if (!value.isEmpty() && "=+-@\t\r".indexOf(value.charAt(0)) >= 0) {
+            value = "'" + value;
+        }
+        return value.replace("\"", "\"\"");
     }
 }

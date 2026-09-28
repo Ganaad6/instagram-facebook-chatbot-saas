@@ -21,6 +21,7 @@ public class Conversation {
         IDLE,
         AWAITING_CATEGORY,
         AWAITING_PRODUCT,
+        AWAITING_QUANTITY,
         AWAITING_CONFIRMATION,
         COLLECT_NAME,
         COLLECT_PHONE,
@@ -65,6 +66,9 @@ public class Conversation {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "selected_product_id")
     private Product selectedProduct;
+
+    @Column(name = "selected_quantity")
+    private Integer selectedQuantity;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "order_id")

@@ -15,7 +15,11 @@ public class OrderResponse {
     private Long customerId;
     private Long productId;
     private String productName;
+    /** Unit price at the time of the order (same value as unitPrice; kept for compatibility). */
     private BigDecimal productPrice;
+    private BigDecimal unitPrice;
+    private Integer quantity;
+    private BigDecimal totalAmount;
     private String customerName;
     private String phone;
     private String address;
@@ -31,8 +35,11 @@ public class OrderResponse {
                 .businessId(order.getBusiness().getId())
                 .customerId(order.getCustomer().getId())
                 .productId(order.getProduct().getId())
-                .productName(order.getProduct().getName())
-                .productPrice(order.getProduct().getPrice())
+                .productName(order.getProductName())
+                .productPrice(order.getUnitPrice())
+                .unitPrice(order.getUnitPrice())
+                .quantity(order.getQuantity())
+                .totalAmount(order.getTotalAmount())
                 .customerName(order.getCustomerName())
                 .phone(order.getPhone())
                 .address(order.getAddress())
