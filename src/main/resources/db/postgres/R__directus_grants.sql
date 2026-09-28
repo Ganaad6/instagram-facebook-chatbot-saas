@@ -12,8 +12,7 @@ BEGIN
         -- Nothing on businesses (encrypted Meta tokens, API key hashes) or on customers,
         -- orders and messages (customer personal data). Shop owners are scoped by the
         -- business_id custom field on their Directus user, so they never need these.
-        REVOKE ALL ON businesses, customers, orders, messages, conversations, conversation_data
-            FROM directus;
+        REVOKE ALL ON businesses, customers, orders, messages, conversations FROM directus;
     END IF;
 END
 $$;
