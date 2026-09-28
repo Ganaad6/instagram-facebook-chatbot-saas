@@ -27,7 +27,7 @@ public class BusinessService {
 
     @Transactional
     public BusinessRegistrationResponse registerBusiness(BusinessRegistrationRequest request) {
-        log.debug("Registering business: {}", request.getEmail());
+        log.debug("Registering business: {}", request.getName());
         String rawApiKey = ApiKeyGenerator.generate();
         Business business = Business.builder()
                 .name(request.getName())

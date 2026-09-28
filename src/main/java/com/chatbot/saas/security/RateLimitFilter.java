@@ -5,7 +5,9 @@ import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import org.springframework.boot.autoconfigure.security.SecurityProperties;
 import org.springframework.context.annotation.Profile;
+import org.springframework.core.annotation.Order;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
@@ -14,12 +16,22 @@ import java.io.IOException;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.LongSupplier;
 
 /**
- * Simple in-memory, per-IP, fixed-window rate limiter for the two unauthenticated endpoints
- * (business registration and the Meta webhook). In-memory means this only works correctly for
- * a single app instance - acceptable for now since deployment is single-instance; would need a
- * shared store (e.g. Redis) if this is ever scaled horizontally.
+ * Simple in-memory, per-IP, fixed-window rate limiter for the endpoints reachable without an
+ * API key: business registration, the Meta webhook, and the admin endpoints (whose HTTP Basic
+ * password would otherwise be open to brute force). In-memory means this only works correctly
+ * for a single app instance - acceptable for now since deployment is single-instance; would
+ * need a shared store (e.g. Redis) if this is ever scaled horizontally.
+ *
+ * The client IP is request.getRemoteAddr(), never a raw X-Forwarded-For header (which any
+ * client can set). Behind a reverse proxy, server.forward-headers-strategy=native makes Tomcat
+ * resolve the real client IP from X-Forwarded-For - but only when the request comes from a
+ * trusted proxy (server.tomcat.remoteip.internal-proxies, private networks by default).
+ *
+ * Ordered before the Spring Security filter chain: otherwise a wrong admin password is
+ * rejected with 401 before this filter ever counts the attempt, leaving brute force unlimited.
  *
  * Disabled under the "test" profile: MockMvc-driven integration tests all originate from the
  * same simulated client, so a real fixed-window limiter would throttle unrelated test methods
@@ -27,40 +39,58 @@ import java.util.concurrent.atomic.AtomicInteger;
  */
 @Component
 @Profile("!test")
+@Order(SecurityProperties.DEFAULT_FILTER_ORDER - 10)
 public class RateLimitFilter extends OncePerRequestFilter {
 
-    private static final long WINDOW_MILLIS = 60_000;
-    private static final int REGISTER_LIMIT_PER_MINUTE = 10;
-    private static final int WEBHOOK_LIMIT_PER_MINUTE = 600;
+    static final long WINDOW_MILLIS = 60_000;
+    static final int REGISTER_LIMIT_PER_MINUTE = 10;
+    static final int WEBHOOK_LIMIT_PER_MINUTE = 600;
+    static final int ADMIN_LIMIT_PER_MINUTE = 30;
+    /** Expired windows are purged once a map grows past this, bounding memory under IP churn. */
+    static final int SWEEP_THRESHOLD = 10_000;
 
     private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
 
     private final ConcurrentHashMap<String, Window> registerWindows = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<String, Window> webhookWindows = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<String, Window> adminWindows = new ConcurrentHashMap<>();
+    private final LongSupplier clock;
+
+    public RateLimitFilter() {
+        this(System::currentTimeMillis);
+    }
+
+    RateLimitFilter(LongSupplier clock) {
+        this.clock = clock;
+    }
 
     @Override
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response,
                                      FilterChain filterChain) throws ServletException, IOException {
         String path = request.getRequestURI();
-        String clientIp = clientIp(request);
+        String clientIp = request.getRemoteAddr();
 
+        boolean limited = false;
         if ("POST".equalsIgnoreCase(request.getMethod()) && path.startsWith("/api/businesses/register")) {
-            if (isRateLimited(registerWindows, clientIp, REGISTER_LIMIT_PER_MINUTE)) {
-                writeTooManyRequests(response);
-                return;
-            }
+            limited = isRateLimited(registerWindows, clientIp, REGISTER_LIMIT_PER_MINUTE);
         } else if (path.startsWith("/webhook")) {
-            if (isRateLimited(webhookWindows, clientIp, WEBHOOK_LIMIT_PER_MINUTE)) {
-                writeTooManyRequests(response);
-                return;
-            }
+            limited = isRateLimited(webhookWindows, clientIp, WEBHOOK_LIMIT_PER_MINUTE);
+        } else if (path.startsWith("/api/admin")) {
+            limited = isRateLimited(adminWindows, clientIp, ADMIN_LIMIT_PER_MINUTE);
         }
 
+        if (limited) {
+            writeTooManyRequests(response);
+            return;
+        }
         filterChain.doFilter(request, response);
     }
 
     private boolean isRateLimited(ConcurrentHashMap<String, Window> windows, String key, int limit) {
-        long now = System.currentTimeMillis();
+        long now = clock.getAsLong();
+        if (windows.size() > SWEEP_THRESHOLD) {
+            windows.values().removeIf(w -> now - w.windowStart > WINDOW_MILLIS);
+        }
         Window window = windows.compute(key, (k, existing) -> {
             if (existing == null || now - existing.windowStart > WINDOW_MILLIS) {
                 return new Window(now);
@@ -70,16 +100,13 @@ public class RateLimitFilter extends OncePerRequestFilter {
         return window.count.incrementAndGet() > limit;
     }
 
-    private String clientIp(HttpServletRequest request) {
-        String forwardedFor = request.getHeader("X-Forwarded-For");
-        if (forwardedFor != null && !forwardedFor.isBlank()) {
-            return forwardedFor.split(",")[0].trim();
-        }
-        return request.getRemoteAddr();
+    int trackedClientCount() {
+        return registerWindows.size() + webhookWindows.size() + adminWindows.size();
     }
 
     private void writeTooManyRequests(HttpServletResponse response) throws IOException {
         response.setStatus(429);
+        response.setHeader("Retry-After", String.valueOf(WINDOW_MILLIS / 1000));
         response.setContentType(MediaType.APPLICATION_JSON_VALUE);
         response.getWriter().write(OBJECT_MAPPER.writeValueAsString(
                 Map.of("error", "Too many requests", "status", 429)));

@@ -23,7 +23,7 @@ public class ConversationDataService {
 
     @Transactional
     public void saveData(Conversation conversation, String fieldName, String fieldValue) {
-        log.debug("Saving data for conversation {}: {}={}", conversation.getId(), fieldName, fieldValue);
+        log.debug("Saving data for conversation {}: field {}", conversation.getId(), fieldName);
         ConversationData data = ConversationData.builder()
                 .conversation(conversation)
                 .fieldName(fieldName)

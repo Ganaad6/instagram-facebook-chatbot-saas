@@ -1,17 +1,22 @@
-version: '3.8'
-
 services:
   postgres:
     image: postgres:15-alpine
     container_name: chatbot_saas_db
+    restart: unless-stopped
     environment:
       POSTGRES_DB: chatbot_saas
       POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: password
+      # Superuser: only used by the init script below. The app and Directus get their own roles.
+      POSTGRES_PASSWORD: ${POSTGRES_SUPERUSER_PASSWORD:?set POSTGRES_SUPERUSER_PASSWORD in .env}
+      APP_DB_USER: chatbot_app
+      APP_DB_PASSWORD: ${APP_DB_PASSWORD:?set APP_DB_PASSWORD in .env}
+      DIRECTUS_DB_PASSWORD: ${DIRECTUS_DB_PASSWORD:?set DIRECTUS_DB_PASSWORD in .env}
     ports:
-      - "5432:5432"
+      # Localhost only - reach it from the host for psql/backups, never from the internet
+      - "127.0.0.1:5432:5432"
     volumes:
       - chatbot_saas_pgdata:/var/lib/postgresql/data
+      - ./docker/postgres/init:/docker-entrypoint-initdb.d:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres -d chatbot_saas"]
       interval: 5s
@@ -21,6 +26,7 @@ services:
   app:
     build: .
     container_name: chatbot_saas_app
+    restart: unless-stopped
     depends_on:
       postgres:
         condition: service_healthy
@@ -28,8 +34,8 @@ services:
       - "${PORT:-8080}:8080"
     environment:
       DATABASE_URL: jdbc:postgresql://postgres:5432/chatbot_saas
-      DATABASE_USERNAME: postgres
-      DATABASE_PASSWORD: password
+      DATABASE_USERNAME: chatbot_app
+      DATABASE_PASSWORD: ${APP_DB_PASSWORD:?set APP_DB_PASSWORD in .env}
       META_APP_ID: ${META_APP_ID}
       META_APP_SECRET: ${META_APP_SECRET}
       BASE_URL: ${BASE_URL:-http://localhost:8080}
@@ -44,30 +50,43 @@ services:
       CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS}
       PORT: 8080
       SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
       DIRECTUS_PUBLIC_URL: ${DIRECTUS_PUBLIC_URL:-http://localhost:8055}
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8080/actuator/health | grep -q UP"]
+      interval: 10s
+      timeout: 5s
+      start_period: 60s
+      retries: 5
 
   # Self-serve catalog admin: shop owners log in here to add/edit their own products
   # (with photo upload) and toggle stock availability. See README.md for one-time setup.
   directus:
     image: directus/directus:11
     container_name: chatbot_saas_directus
+    restart: unless-stopped
     depends_on:
-      postgres:
+      # Wait for the app so its migrations (tables + Directus grants) exist before Directus
+      # introspects the schema
+      app:
         condition: service_healthy
     ports:
       - "${DIRECTUS_PORT:-8055}:8055"
     environment:
-      KEY: ${DIRECTUS_KEY}
-      SECRET: ${DIRECTUS_SECRET}
+      KEY: ${DIRECTUS_KEY:?set DIRECTUS_KEY in .env}
+      SECRET: ${DIRECTUS_SECRET:?set DIRECTUS_SECRET in .env}
       DB_CLIENT: pg
       DB_HOST: postgres
       DB_PORT: 5432
       DB_DATABASE: chatbot_saas
-      DB_USER: postgres
-      DB_PASSWORD: password
+      DB_USER: directus
+      DB_PASSWORD: ${DIRECTUS_DB_PASSWORD:?set DIRECTUS_DB_PASSWORD in .env}
       ADMIN_EMAIL: ${DIRECTUS_ADMIN_EMAIL}
       ADMIN_PASSWORD: ${DIRECTUS_ADMIN_PASSWORD}
       PUBLIC_URL: ${DIRECTUS_PUBLIC_URL:-http://localhost:8055}
+    volumes:
+      - directus_uploads:/directus/uploads
 
 volumes:
   chatbot_saas_pgdata:
+  directus_uploads:

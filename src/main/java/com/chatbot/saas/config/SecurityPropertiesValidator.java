@@ -21,6 +21,7 @@ public class SecurityPropertiesValidator {
     private static final String INSECURE_ENCRYPTION_KEY = "0123456789abcdef0123456789abcdef";
     private static final String INSECURE_WEBHOOK_TOKEN = "verify_token";
     private static final String INSECURE_ADMIN_PASSWORD = "change_me_before_deploying";
+    private static final String INSECURE_DATABASE_PASSWORD = "password";
 
     @Value("${encryption.secret-key:}")
     private String encryptionSecretKey;
@@ -36,6 +37,18 @@ public class SecurityPropertiesValidator {
 
     @Value("${cors.allowed-origins:}")
     private String corsAllowedOrigins;
+
+    @Value("${spring.datasource.password:}")
+    private String databasePassword;
+
+    @Value("${meta.app.id:}")
+    private String metaAppId;
+
+    @Value("${meta.app.secret:}")
+    private String metaAppSecret;
+
+    @Value("${meta.oauth.redirect-uri:}")
+    private String oauthRedirectUri;
 
     @PostConstruct
     public void validate() {
@@ -55,6 +68,16 @@ public class SecurityPropertiesValidator {
         }
         if ("*".equals(corsAllowedOrigins.trim())) {
             problems.add("CORS_ALLOWED_ORIGINS must not be '*' in production");
+        }
+        if (databasePassword.isBlank() || databasePassword.equals(INSECURE_DATABASE_PASSWORD)) {
+            problems.add("DATABASE_PASSWORD must be set to a strong, unique value");
+        }
+        if (metaAppId.isBlank() || metaAppSecret.isBlank()) {
+            // Without the app secret every webhook fails signature verification
+            problems.add("META_APP_ID and META_APP_SECRET must be set");
+        }
+        if (!oauthRedirectUri.startsWith("https://")) {
+            problems.add("BASE_URL must be an https:// URL (Meta requires HTTPS redirect URIs)");
         }
 
         if (!problems.isEmpty()) {

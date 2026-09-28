@@ -11,4 +11,5 @@ WORKDIR /app
 COPY --from=build /build/target/*.jar app.jar
 USER app
 EXPOSE 8080
-ENTRYPOINT ["java", "-jar", "/app/app.jar"]
+# Size the heap from the container's memory limit rather than the host's
+ENTRYPOINT ["java", "-XX:MaxRAMPercentage=75", "-XX:+ExitOnOutOfMemoryError", "-jar", "/app/app.jar"]

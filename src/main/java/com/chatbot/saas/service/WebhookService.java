@@ -50,7 +50,8 @@ public class WebhookService {
         try {
             root = objectMapper.readTree(payload);
         } catch (Exception e) {
-            log.error("Unparseable webhook payload: {}", e.getMessage());
+            // Don't log the parser message: it can quote the payload, i.e. customer messages
+            log.error("Unparseable webhook payload ({} chars)", payload.length());
             return;
         }
 

@@ -80,6 +80,47 @@ Fly.io, AWS, etc.) without cloud lock-in.
 3. Run `docker compose up -d --build`.
 4. Put a reverse proxy or platform in front that terminates TLS (e.g. Caddy/nginx, or a PaaS with
    automatic HTTPS). The admin endpoints use HTTP Basic auth, which is only safe over HTTPS.
+   The app trusts `X-Forwarded-For` only from private-network proxies (for rate limiting by real
+   client IP); if your proxy connects from a public IP, set
+   `SERVER_TOMCAT_REMOTEIP_INTERNAL_PROXIES` to a regex matching it.
+
+### Database roles
+
+The Postgres container creates three roles on first start (`docker/postgres/init`): the
+`postgres` superuser (init only), `chatbot_app` (owns the schema, used by the app) and `directus`
+(catalog tables only). Postgres is published on `127.0.0.1:5432` only.
+
+**Upgrading an existing database volume** created before these roles existed: the init script
+only runs on an empty volume, so run the one-time upgrade script, then set
+`APP_DB_PASSWORD` / `DIRECTUS_DB_PASSWORD` / `POSTGRES_SUPERUSER_PASSWORD` in `.env` (the
+superuser password is whatever the volume was created with) and restart:
+
+```bash
+docker compose stop app directus
+docker compose exec -T postgres psql -U postgres -d chatbot_saas -v ON_ERROR_STOP=1 \
+  -v app_password='<APP_DB_PASSWORD>' -v directus_password='<DIRECTUS_DB_PASSWORD>' \
+  < docker/postgres/upgrade-existing-volume.sql
+docker compose up -d
+```
+
+### Backups
+
+```bash
+# Nightly dump (e.g. from cron on the host); keep copies off the server
+docker compose exec -T postgres pg_dump -U postgres -Fc chatbot_saas > backup-$(date +%F).dump
+# Restore into an empty database
+docker compose exec -T postgres pg_restore -U postgres -d chatbot_saas --clean < backup.dump
+```
+
+Product photos live in the `directus_uploads` volume - back that up too.
+
+### Operations notes
+
+- Logs default to `INFO` (`LOG_LEVEL`); `DEBUG` includes customer IDs and message metadata.
+- On shutdown the app stops accepting requests and gives in-flight chat messages up to 30s to
+  finish, so redeploys don't cut conversations off mid-reply.
+- `/actuator/health` is the only public actuator endpoint and backs the container healthcheck.
+- Rate limits (per client IP, per minute): registration 10, webhook 600, admin endpoints 30.
 
 ### Required environment variables
 
@@ -136,24 +177,37 @@ the same Postgres database the app uses, so no extra database or sync step is ne
 shop owner saves in Directus is exactly what the chatbot reads on the next message, including the
 existing "in stock" toggle (the products' `isActive` field).
 
+Directus connects as its own restricted `directus` database role: it can read, create and update
+`products` and `categories` only. It cannot see `businesses` (Meta tokens, API key hashes),
+customers, orders or messages, cannot delete products (switch `is_active` off instead - orders
+reference them), and cannot alter the app's tables. The grants live in
+`src/main/resources/db/postgres/R__directus_grants.sql`.
+
 This is a one-time setup per deployment (not per shop) - do it once after your first
 `docker compose up -d --build`:
 
 1. Open Directus at `DIRECTUS_PUBLIC_URL` (default `http://localhost:8055`) and log in with
    `DIRECTUS_ADMIN_EMAIL` / `DIRECTUS_ADMIN_PASSWORD`.
-2. **Settings → Data Model → Create Collection**, and add `businesses`, `categories`, and
-   `products` as collections **from the existing tables** (Directus will detect them since it's
-   the same database).
+2. **Settings → Data Model**, and add `categories` and `products` as collections **from the
+   existing tables** (Directus will detect them since it's the same database). `businesses` is
+   intentionally not visible to Directus.
 3. On the `products` collection, find the existing `image_file_id` column and click
    **Manage Field** (not "Create Field" - that would try to add a duplicate column) and set its
    interface to **Image**. This turns it into a real drag-and-drop upload field backed by
    Directus's own file storage.
 4. **Settings → Data Model → Directus Users**, add a custom field `business_id` (type Integer).
    This is what scopes each shop owner's login to only their own products.
-5. **Settings → Roles & Permissions → Create Role** ("Shop Owner"). Grant Read/Create/Update on
-   `products` and `categories`, each with the custom filter
-   `business_id equals $CURRENT_USER.business_id` - this is what stops shop A from seeing or
-   editing shop B's catalog.
+5. Create a **Shop Owner** role with an access policy granting, on both `products` and
+   `categories`:
+   - **Read** and **Update**, with item permission `business_id` *equals*
+     `$CURRENT_USER.business_id` (which rows they can see/edit);
+   - **Create** and **Update**, with field validation `business_id` *equals*
+     `$CURRENT_USER.business_id` and a field preset `business_id` = `$CURRENT_USER.business_id`
+     (what they're allowed to save).
+
+   Both halves matter: the item filter alone doesn't stop a shop owner from creating a product
+   with, or editing a product to, another shop's `business_id`. Also hide `business_id` in the
+   role's field permissions so it isn't editable at all.
 6. **Settings → Files → (product images folder) → Permissions**, and give the **Public** role
    read access to it. Meta's servers fetch the image URL directly from the open internet with no
    auth, so the images themselves must be publicly readable (this does not expose anything else
