@@ -90,6 +90,7 @@ Fly.io, AWS, etc.) without cloud lock-in.
 | `BASE_URL` | Public URL used to build the OAuth redirect URI |
 | `META_GRAPH_API_VERSION` | Graph API version (default `v23.0`) - bump before Meta retires it |
 | `OAUTH_STATE_TTL_MINUTES` | How long a connect link stays valid (default 60) |
+| `CHATBOT_CONVERSATION_TIMEOUT_HOURS` | Idle hours before an unfinished order conversation is abandoned (default 24) |
 | `WEBHOOK_VERIFY_TOKEN` | Verifies Meta's webhook subscription handshake |
 | `ENCRYPTION_SECRET_KEY` | AES-GCM key (16/24/32 bytes) encrypting stored Meta access tokens |
 | `OAUTH_STATE_SECRET` | Signs the OAuth `state` parameter - must differ from `ENCRYPTION_SECRET_KEY` |
@@ -101,6 +102,15 @@ Fly.io, AWS, etc.) without cloud lock-in.
 
 `.github/workflows/ci.yml` runs `mvn -B verify` (build + full test suite) on every push/PR to
 `main`.
+
+## Chatbot behavior notes
+
+- Customers can type **цэс**, **эхлэх**, **дахин**, **menu**, **start** or **restart** at any point
+  to go back to the category menu.
+- Messages from one customer are processed strictly in order (row lock on the customer), and
+  Meta webhook redeliveries are recognized by message ID and skipped.
+- If the shop deactivates a product mid-conversation, the customer is told it's sold out and
+  sent back to the menu instead of the order being placed.
 
 ## Meta app setup (one time)
 

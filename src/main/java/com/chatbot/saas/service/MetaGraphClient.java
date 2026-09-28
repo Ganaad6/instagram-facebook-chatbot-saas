@@ -7,6 +7,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.web.reactive.function.client.WebClient;
+import org.springframework.web.reactive.function.client.WebClientRequestException;
 import org.springframework.web.reactive.function.client.WebClientResponseException;
 
 import java.util.ArrayList;
@@ -22,6 +23,8 @@ import java.util.function.Supplier;
 @RequiredArgsConstructor
 @Slf4j
 public class MetaGraphClient {
+
+    private static final String PAGE_FIELDS = "id,name,access_token,instagram_business_account{id}";
 
     private final WebClient metaWebClient;
 
@@ -77,10 +80,12 @@ public class MetaGraphClient {
         JsonNode response = call(() -> metaWebClient.get()
                 .uri(uriBuilder -> uriBuilder
                         .path("/me/accounts")
-                        .queryParam("fields", "id,name,access_token,instagram_business_account{id}")
+                        // Passed as a template value: the literal "{id}" would otherwise be
+                        // parsed as a URI variable
+                        .queryParam("fields", "{fields}")
                         .queryParam("limit", 100)
-                        .queryParam("access_token", longLivedUserToken)
-                        .build())
+                        .build(PAGE_FIELDS))
+                .headers(h -> h.setBearerAuth(longLivedUserToken))
                 .retrieve()
                 .bodyToMono(JsonNode.class)
                 .block());
@@ -106,8 +111,8 @@ public class MetaGraphClient {
                 .uri(uriBuilder -> uriBuilder
                         .path("/{pageId}/subscribed_apps")
                         .queryParam("subscribed_fields", "messages,messaging_postbacks")
-                        .queryParam("access_token", pageAccessToken)
                         .build(pageId))
+                .headers(h -> h.setBearerAuth(pageAccessToken))
                 .retrieve()
                 .bodyToMono(JsonNode.class)
                 .block());
@@ -122,6 +127,9 @@ public class MetaGraphClient {
             return request.get();
         } catch (WebClientResponseException e) {
             throw new MetaConnectException("Meta API error: " + extractErrorMessage(e), e);
+        } catch (WebClientRequestException e) {
+            // The message would include the request URL, which carries tokens/the app secret
+            throw new MetaConnectException("Could not reach Meta. Please try again.", e);
         }
     }
 

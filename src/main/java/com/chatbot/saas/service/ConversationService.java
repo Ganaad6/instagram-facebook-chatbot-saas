@@ -29,7 +29,7 @@ public class ConversationService {
      * Create a conversation using the legacy flow-step engine.
      */
     @Transactional
-    public Conversation createConversation(Customer customer, Business business, ChatbotFlow flow) {
+    public Conversation createConversation(Customer customer, Business business, ChatbotFlow flow, String platform) {
         FlowStep firstStep = flowStepRepository.findFirstByFlowIdOrderByStepOrderAsc(flow.getId())
                 .orElse(null);
         Conversation conversation = Conversation.builder()
@@ -39,6 +39,7 @@ public class ConversationService {
                 .currentStep(firstStep)
                 .status(Conversation.Status.ACTIVE)
                 .state(Conversation.State.IDLE)
+                .platform(platform)
                 .startedAt(LocalDateTime.now())
                 .updatedAt(LocalDateTime.now())
                 .build();
@@ -110,6 +111,6 @@ public class ConversationService {
 
     @Transactional(readOnly = true)
     public Optional<Conversation> findActiveConversationForCustomer(Long customerId) {
-        return conversationRepository.findByCustomerIdAndStatus(customerId, Conversation.Status.ACTIVE);
+        return conversationRepository.findFirstByCustomerIdAndStatusOrderByUpdatedAtDesc(customerId, Conversation.Status.ACTIVE);
     }
 }

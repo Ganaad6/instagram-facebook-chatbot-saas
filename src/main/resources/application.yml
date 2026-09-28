@@ -35,6 +35,10 @@ meta:
 webhook:
   verify-token: ${WEBHOOK_VERIFY_TOKEN:verify_token}
 
+chatbot:
+  # An unfinished conversation idle this long is abandoned; the customer's next message starts over
+  conversation-timeout-hours: ${CHATBOT_CONVERSATION_TIMEOUT_HOURS:24}
+
 directus:
   public-url: ${DIRECTUS_PUBLIC_URL:}
 

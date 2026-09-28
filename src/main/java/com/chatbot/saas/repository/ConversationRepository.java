@@ -9,6 +9,6 @@ import java.util.Optional;
 
 @Repository
 public interface ConversationRepository extends JpaRepository<Conversation, Long> {
-    Optional<Conversation> findByCustomerIdAndStatus(Long customerId, Conversation.Status status);
+    Optional<Conversation> findFirstByCustomerIdAndStatusOrderByUpdatedAtDesc(Long customerId, Conversation.Status status);
     List<Conversation> findAllByBusinessId(Long businessId);
 }

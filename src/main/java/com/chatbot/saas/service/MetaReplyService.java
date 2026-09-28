@@ -4,7 +4,9 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.web.reactive.function.client.WebClient;
+import org.springframework.web.reactive.function.client.WebClientResponseException;
 
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -13,11 +15,17 @@ import java.util.Map;
 /**
  * Platform-aware Meta reply service.
  * Facebook Messenger supports quick-reply buttons; Instagram only supports plain text.
+ *
+ * Sends are blocking on purpose: callers run on the async message-handling thread, and a
+ * conversation often sends several messages in a row (product photos, then the menu) which
+ * must reach the customer in that order.
  */
 @Service
 @RequiredArgsConstructor
 @Slf4j
 public class MetaReplyService {
+
+    private static final Duration SEND_TIMEOUT = Duration.ofSeconds(10);
 
     private final WebClient metaWebClient;
 
@@ -97,16 +105,21 @@ public class MetaReplyService {
     }
 
     private void doPost(Map<String, Object> body, String accessToken, String recipientId) {
-        metaWebClient.post()
-                .uri(uriBuilder -> uriBuilder
-                        .path("/me/messages")
-                        .queryParam("access_token", accessToken)
-                        .build())
-                .bodyValue(body)
-                .retrieve()
-                .bodyToMono(Map.class)
-                .doOnSuccess(resp -> log.debug("Message sent to {}", recipientId))
-                .doOnError(err -> log.error("Failed to send message to {}: {}", recipientId, err.getMessage()))
-                .subscribe();
+        try {
+            metaWebClient.post()
+                    .uri("/me/messages")
+                    // Header rather than query param so the token never appears in logged URLs
+                    .headers(h -> h.setBearerAuth(accessToken))
+                    .bodyValue(body)
+                    .retrieve()
+                    .bodyToMono(Map.class)
+                    .block(SEND_TIMEOUT);
+            log.debug("Message sent to {}", recipientId);
+        } catch (WebClientResponseException e) {
+            // Don't fail the conversation over one undelivered message; the state is already saved
+            log.error("Meta rejected message to {}: {} {}", recipientId, e.getStatusCode(), e.getResponseBodyAsString());
+        } catch (Exception e) {
+            log.error("Failed to send message to {}: {}", recipientId, e.getMessage());
+        }
     }
 }

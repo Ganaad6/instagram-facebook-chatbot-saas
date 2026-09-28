@@ -9,7 +9,9 @@ spring:
       ddl-auto: validate
     properties:
       hibernate:
-        dialect: org.hibernate.dialect.PostgreSQLDialect
+        # H2's own dialect: the PostgreSQL dialect emits "FOR NO KEY UPDATE" for pessimistic
+        # locks, which H2 can't parse even in PostgreSQL mode
+        dialect: org.hibernate.dialect.H2Dialect
   flyway:
     enabled: true
     locations: classpath:db/migration

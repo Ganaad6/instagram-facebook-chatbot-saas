@@ -12,6 +12,7 @@ import java.math.BigDecimal;
 import java.util.List;
 import java.util.UUID;
 
+import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
@@ -92,5 +93,68 @@ class ChatbotEngineServiceTest {
                 .sendImage("customer-1", DIRECTUS_PUBLIC_URL + "/assets/" + imageFileId, "token");
         verify(metaReplyService, times(1))
                 .sendMenuMessage(eq("customer-1"), eq("INSTAGRAM"), anyString(), anyList(), eq("token"));
+    }
+
+    @Test
+    void restartKeywordReturnsToCategoryMenuFromAnyState() {
+        Business business = Business.builder().id(1L).build();
+        Customer customer = Customer.builder().instagramUserId("customer-1").build();
+        Category category = Category.builder().id(10L).name("Shoes").isActive(true).build();
+        Conversation conversation = Conversation.builder()
+                .business(business).customer(customer)
+                .status(Conversation.Status.ACTIVE)
+                .state(Conversation.State.COLLECT_PHONE)
+                .selectedCategory(category)
+                .selectedProduct(product(1L, "Red shoes", null))
+                .build();
+        when(oAuthService.getDecryptedAccessToken(business)).thenReturn("token");
+        when(categoryService.getActiveCategories(1L)).thenReturn(List.of(category));
+
+        chatbotEngineService.process(conversation, " Цэс ", "INSTAGRAM");
+
+        assertEquals(Conversation.State.AWAITING_CATEGORY, conversation.getState());
+        assertNull(conversation.getSelectedProduct());
+        verify(metaReplyService).sendMenuMessage(eq("customer-1"), eq("INSTAGRAM"), anyString(), anyList(), eq("token"));
+    }
+
+    @Test
+    void confirmingAProductThatWasDeactivatedSendsCustomerBackToMenu() {
+        Business business = Business.builder().id(1L).build();
+        Customer customer = Customer.builder().instagramUserId("customer-1").build();
+        Category category = Category.builder().id(10L).name("Shoes").isActive(true).build();
+        Product soldOut = product(1L, "Red shoes", null);
+        soldOut.setIsActive(false);
+        Conversation conversation = Conversation.builder()
+                .business(business).customer(customer)
+                .status(Conversation.Status.ACTIVE)
+                .state(Conversation.State.AWAITING_CONFIRMATION)
+                .selectedCategory(category)
+                .selectedProduct(soldOut)
+                .build();
+        when(oAuthService.getDecryptedAccessToken(business)).thenReturn("token");
+        when(categoryService.getActiveCategories(1L)).thenReturn(List.of(category));
+
+        chatbotEngineService.process(conversation, "1", "INSTAGRAM");
+
+        assertEquals(Conversation.State.AWAITING_CATEGORY, conversation.getState());
+        assertNull(conversation.getSelectedProduct());
+    }
+
+    @Test
+    void facebookRepliesGoToTheFacebookSenderId() {
+        Business business = Business.builder().id(1L).build();
+        Customer customer = Customer.builder().facebookUserId("psid-1").build();
+        Category category = Category.builder().id(10L).name("Shoes").isActive(true).build();
+        Conversation conversation = Conversation.builder()
+                .business(business).customer(customer)
+                .status(Conversation.Status.ACTIVE)
+                .state(Conversation.State.IDLE)
+                .build();
+        when(oAuthService.getDecryptedAccessToken(business)).thenReturn("token");
+        when(categoryService.getActiveCategories(1L)).thenReturn(List.of(category));
+
+        chatbotEngineService.process(conversation, "hi", "FACEBOOK");
+
+        verify(metaReplyService).sendMenuMessage(eq("psid-1"), eq("FACEBOOK"), anyString(), anyList(), eq("token"));
     }
 }

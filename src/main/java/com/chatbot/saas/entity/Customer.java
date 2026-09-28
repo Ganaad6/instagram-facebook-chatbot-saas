@@ -23,7 +23,7 @@ public class Customer {
     @JoinColumn(name = "business_id", nullable = false)
     private Business business;
 
-    @Column(name = "instagram_user_id", nullable = false)
+    @Column(name = "instagram_user_id")
     private String instagramUserId;
 
     @Column(name = "facebook_user_id")
@@ -34,6 +34,11 @@ public class Customer {
 
     @Column(name = "last_interaction_at", nullable = false)
     private LocalDateTime lastInteractionAt;
+
+    /** The ID Meta uses for this person on the given platform - the recipient ID for replies. */
+    public String getPlatformUserId(String platform) {
+        return "FACEBOOK".equalsIgnoreCase(platform) ? facebookUserId : instagramUserId;
+    }
 
     @PrePersist
     protected void onCreate() {

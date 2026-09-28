@@ -7,6 +7,8 @@ import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.nio.charset.StandardCharsets;
+
 @RestController
 @RequestMapping("/webhook")
 @RequiredArgsConstructor
@@ -27,10 +29,12 @@ public class WebhookController {
 
     @PostMapping
     public ResponseEntity<String> processWebhook(
-            @RequestBody String payload,
+            @RequestBody byte[] body,
             @RequestHeader(value = "X-Hub-Signature-256", required = false) String signature) {
         log.debug("Webhook event received");
-        webhookService.processWebhookEvent(payload, signature);
+        // Read raw bytes and decode as UTF-8 ourselves so the HMAC is computed over exactly
+        // what Meta signed, whatever charset the request's Content-Type claims
+        webhookService.processWebhookEvent(new String(body, StandardCharsets.UTF_8), signature);
         return ResponseEntity.ok("EVENT_RECEIVED");
     }
 }

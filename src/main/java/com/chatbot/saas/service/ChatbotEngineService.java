@@ -12,6 +12,8 @@ import org.springframework.util.StringUtils;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Locale;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 /**
@@ -21,6 +23,7 @@ import java.util.stream.Collectors;
  *   IDLE → AWAITING_CATEGORY → AWAITING_PRODUCT → AWAITING_CONFIRMATION
  *        → COLLECT_NAME → COLLECT_PHONE → COLLECT_ADDRESS → ORDER_SAVED
  *   AWAITING_CONFIRMATION → CANCELLED (user says no)
+ *   any state → AWAITING_CATEGORY on a restart keyword (e.g. "цэс" / "menu")
  *
  * Platform-aware: Facebook uses quick-reply buttons; Instagram uses numbered text lists.
  */
@@ -30,6 +33,7 @@ import java.util.stream.Collectors;
 public class ChatbotEngineService {
 
     private static final String MONGOLIAN_PHONE_REGEX = "^\\d{8}$";
+    private static final Set<String> RESTART_KEYWORDS = Set.of("цэс", "эхлэх", "дахин", "menu", "start", "restart");
 
     private final ConversationRepository conversationRepository;
     private final CategoryService categoryService;
@@ -46,11 +50,22 @@ public class ChatbotEngineService {
     public void process(Conversation conversation, String userInput, String platform) {
         Business business = conversation.getBusiness();
         Customer customer = conversation.getCustomer();
-        String senderId = customer.getInstagramUserId();
+        String senderId = customer.getPlatformUserId(platform);
         String token = oAuthService.getDecryptedAccessToken(business);
+        if (token == null) {
+            log.warn("Business {} has no Meta token; cannot reply to conversation {}", business.getId(), conversation.getId());
+            return;
+        }
+        userInput = userInput != null ? userInput : "";
 
         Conversation.State state = conversation.getState();
-        log.debug("Processing state={} input='{}' platform={}", state, userInput, platform);
+        log.debug("Processing state={} platform={}", state, platform);
+
+        if (state != Conversation.State.IDLE && isRestart(userInput)) {
+            resetSelections(conversation);
+            showCategories(conversation, senderId, token, platform);
+            return;
+        }
 
         switch (state) {
             case IDLE -> handleIdle(conversation, senderId, token, platform);
@@ -91,6 +106,13 @@ public class ChatbotEngineService {
 
     private void handleAwaitingProduct(Conversation conversation, String userInput,
                                         String senderId, String token, String platform) {
+        Category category = conversation.getSelectedCategory();
+        if (category == null || !Boolean.TRUE.equals(category.getIsActive())) {
+            resetSelections(conversation);
+            metaReplyService.sendText(senderId, "Уучлаарай, энэ ангилал одоо байхгүй байна.", token);
+            showCategories(conversation, senderId, token, platform);
+            return;
+        }
         List<Product> products = productService.getActiveProductsByCategory(
                 conversation.getBusiness().getId(),
                 conversation.getSelectedCategory().getId());
@@ -118,7 +140,9 @@ public class ChatbotEngineService {
         boolean confirmed = "1".equals(trimmed) || "тийм".equalsIgnoreCase(trimmed) || "yes".equalsIgnoreCase(trimmed);
         boolean cancelled = "0".equals(trimmed) || "буцах".equalsIgnoreCase(trimmed) || "no".equalsIgnoreCase(trimmed);
 
-        if (confirmed) {
+        if (confirmed && !isAvailable(conversation.getSelectedProduct())) {
+            productNoLongerAvailable(conversation, senderId, token, platform);
+        } else if (confirmed) {
             saveState(conversation, Conversation.State.COLLECT_NAME);
             metaReplyService.sendText(senderId, "Таны нэрийг оруулна уу:", token);
         } else if (cancelled) {
@@ -161,6 +185,10 @@ public class ChatbotEngineService {
             return;
         }
         conversation.setCollectedAddress(userInput.trim());
+        if (!isAvailable(conversation.getSelectedProduct())) {
+            productNoLongerAvailable(conversation, senderId, token, platform);
+            return;
+        }
 
         // Determine platform for the Order record
         Order.Platform orderPlatform = "FACEBOOK".equalsIgnoreCase(platform)
@@ -247,6 +275,26 @@ public class ChatbotEngineService {
     }
 
     // ─── Helpers ─────────────────────────────────────────────────────────────
+
+    private boolean isAvailable(Product product) {
+        return product != null && Boolean.TRUE.equals(product.getIsActive());
+    }
+
+    /** The shop deactivated the chosen product mid-conversation; send the customer back to the menu. */
+    private void productNoLongerAvailable(Conversation conversation, String senderId, String token, String platform) {
+        resetSelections(conversation);
+        metaReplyService.sendText(senderId, "Уучлаарай, энэ бараа дууссан байна. Өөр бараа сонгоно уу.", token);
+        showCategories(conversation, senderId, token, platform);
+    }
+
+    private boolean isRestart(String input) {
+        return RESTART_KEYWORDS.contains(input.trim().toLowerCase(Locale.ROOT));
+    }
+
+    private void resetSelections(Conversation conversation) {
+        conversation.setSelectedCategory(null);
+        conversation.setSelectedProduct(null);
+    }
 
     private void saveState(Conversation conversation, Conversation.State newState) {
         conversation.setState(newState);

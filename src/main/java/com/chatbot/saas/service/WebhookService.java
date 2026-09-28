@@ -1,9 +1,10 @@
 package com.chatbot.saas.service;
 
+import com.chatbot.saas.exception.WebhookAuthenticationException;
+import com.chatbot.saas.service.MessageHandlerService.InboundMessage;
 import com.chatbot.saas.util.SignatureValidator;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
@@ -31,70 +32,79 @@ public class WebhookService {
             log.info("Webhook verified successfully");
             return challenge;
         }
-        throw new RuntimeException("Webhook verification failed");
+        throw new WebhookAuthenticationException("Webhook verification failed");
     }
 
+    /**
+     * Verifies and dispatches a webhook delivery. Only a bad signature is reported as an error;
+     * anything else is logged and swallowed, because a non-2xx response makes Meta retry the
+     * same delivery repeatedly (and eventually disable the webhook).
+     */
     public void processWebhookEvent(String payload, String signature) {
         if (!verifySignature(payload, signature)) {
             log.warn("Invalid webhook signature");
-            throw new RuntimeException("Invalid webhook signature");
+            throw new WebhookAuthenticationException("Invalid webhook signature");
         }
 
+        JsonNode root;
         try {
-            JsonNode root = objectMapper.readTree(payload);
-            String objectType = root.path("object").asText();
-            log.debug("Processing webhook for object type: {}", objectType);
+            root = objectMapper.readTree(payload);
+        } catch (Exception e) {
+            log.error("Unparseable webhook payload: {}", e.getMessage());
+            return;
+        }
 
-            // Determine platform from object type
-            String platform = "page".equalsIgnoreCase(objectType) ? "FACEBOOK" : "INSTAGRAM";
+        String objectType = root.path("object").asText();
+        log.debug("Processing webhook for object type: {}", objectType);
+        // "page" = Facebook Messenger, "instagram" = Instagram messaging
+        String platform = "page".equalsIgnoreCase(objectType) ? "FACEBOOK" : "INSTAGRAM";
 
-            JsonNode entries = root.path("entry");
-            for (JsonNode entry : entries) {
-                // Facebook Messenger uses "messaging"; Instagram uses "messaging" too
-                JsonNode messagingArray = entry.path("messaging");
-                for (JsonNode messagingEvent : messagingArray) {
+        for (JsonNode entry : root.path("entry")) {
+            for (JsonNode messagingEvent : entry.path("messaging")) {
+                try {
                     processMessagingEvent(messagingEvent, platform);
+                } catch (Exception e) {
+                    log.error("Error dispatching messaging event: {}", e.getMessage(), e);
                 }
             }
-        } catch (Exception e) {
-            log.error("Error processing webhook payload: {}", e.getMessage(), e);
-            throw new RuntimeException("Error processing webhook", e);
         }
     }
 
     private void processMessagingEvent(JsonNode messagingEvent, String platform) {
-        JsonNode sender = messagingEvent.path("sender");
-        JsonNode recipient = messagingEvent.path("recipient");
-        String senderId = sender.path("id").asText();
-        String recipientId = recipient.path("id").asText();
-
+        String senderId = messagingEvent.path("sender").path("id").asText();
+        String recipientId = messagingEvent.path("recipient").path("id").asText();
         if (senderId.isEmpty() || recipientId.isEmpty()) {
             return;
         }
 
-        // Handle text messages
         if (messagingEvent.has("message")) {
             JsonNode message = messagingEvent.path("message");
-            // Skip echo messages (messages sent by the page itself)
-            if (message.path("is_echo").asBoolean(false)) {
+            // Skip echoes of the page's own messages and "unsent" notifications
+            if (message.path("is_echo").asBoolean(false) || message.path("is_deleted").asBoolean(false)) {
                 return;
             }
-            String messageText = message.path("text").asText();
-            if (!messageText.isEmpty()) {
-                log.debug("Text message from {} to {} [{}]", senderId, recipientId, platform);
-                messageHandlerService.handleIncomingMessage(senderId, messageText, recipientId, platform);
+            // Tapping a quick reply sends its title as text; the payload holds the menu number
+            String text = message.path("quick_reply").path("payload").asText("");
+            if (text.isEmpty()) {
+                text = message.path("text").asText("");
             }
-        }
-
-        // Handle postback (Facebook quick-reply button clicks)
-        if (messagingEvent.has("postback")) {
+            boolean hasAttachments = message.path("attachments").size() > 0;
+            if (text.isEmpty() && !hasAttachments) {
+                return;
+            }
+            dispatch(platform, senderId, recipientId, message.path("mid").asText(null), text);
+        } else if (messagingEvent.has("postback")) {
             JsonNode postback = messagingEvent.path("postback");
-            String payload = postback.path("payload").asText();
+            String payload = postback.path("payload").asText("");
             if (!payload.isEmpty()) {
-                log.debug("Postback from {} payload={}", senderId, payload);
-                messageHandlerService.handlePostback(senderId, payload, recipientId);
+                dispatch(platform, senderId, recipientId, postback.path("mid").asText(null), payload);
             }
         }
+    }
+
+    private void dispatch(String platform, String senderId, String recipientId, String mid, String text) {
+        log.debug("Message from {} to {} [{}] mid={}", senderId, recipientId, platform, mid);
+        messageHandlerService.handleIncomingMessage(new InboundMessage(platform, senderId, recipientId, mid, text));
     }
 
     public boolean verifySignature(String payload, String signature) {
