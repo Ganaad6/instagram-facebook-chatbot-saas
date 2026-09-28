@@ -17,6 +17,10 @@ public class Message {
         INBOUND, OUTBOUND
     }
 
+    public enum SenderType {
+        CUSTOMER, BOT, AGENT
+    }
+
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
@@ -39,6 +43,10 @@ public class Message {
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 10)
     private Direction direction;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "sender_type", nullable = false, length = 10)
+    private SenderType senderType;
 
     @Column(nullable = false, columnDefinition = "TEXT")
     private String content;

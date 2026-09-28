@@ -131,6 +131,7 @@ Product photos live in the `directus_uploads` volume - back that up too.
 | `BASE_URL` | Public URL used to build the OAuth redirect URI |
 | `META_GRAPH_API_VERSION` | Graph API version (default `v23.0`) - bump before Meta retires it |
 | `OAUTH_STATE_TTL_MINUTES` | How long a connect link stays valid (default 60) |
+| `CHATBOT_HANDOFF_TIMEOUT_HOURS` | Hours the bot stays paused for a customer after a handoff request or staff reply (default 12) |
 | `CHATBOT_CONVERSATION_TIMEOUT_HOURS` | Idle hours before an unfinished order conversation is abandoned (default 24) |
 | `WEBHOOK_VERIFY_TOKEN` | Verifies Meta's webhook subscription handshake |
 | `ENCRYPTION_SECRET_KEY` | AES-GCM key (16/24/32 bytes) encrypting stored Meta access tokens |
@@ -153,17 +154,37 @@ Product photos live in the `directus_uploads` volume - back that up too.
 - If the shop deactivates a product mid-conversation, the customer is told it's sold out and
   sent back to the menu instead of the order being placed.
 
+### Human handoff
+
+A shop's staff can take a conversation over from the bot, per customer:
+
+- **Customer asks for a person** by typing **оператор**, **ажилтан**, **хүн**, **human**,
+  **agent** or **operator**. The bot acknowledges, goes quiet for that customer, and the shop's
+  notification webhook gets a `HANDOFF_REQUESTED` event.
+- **Staff reply from the shop's normal Meta inbox** (Meta Business Suite / the Page inbox /
+  the Instagram app). The app sees the echo of that message, records it in the transcript as
+  an `AGENT` message and pauses the bot so it doesn't talk over them. No extra tool needed.
+- **Or staff use the API** (`/api/businesses/{id}/inbox` and `/customers/{id}/messages`,
+  `/pause-bot`, `/resume-bot` - see API.md).
+- The bot takes over again when staff call `resume-bot`, when the customer types a menu keyword
+  (**цэс**, **menu**, ...), or after `CHATBOT_HANDOFF_TIMEOUT_HOURS` (default 12) without staff
+  activity.
+
 ## Meta app setup (one time)
 
 1. In the Meta developer dashboard, add the **Messenger** and **Instagram** products (Instagram
    messaging via the Messenger Platform, i.e. Facebook Login - not "Instagram Login").
 2. Add `${BASE_URL}/api/auth/meta/callback` as a valid OAuth redirect URI under Facebook Login.
 3. Configure webhooks for both the **Page** and **Instagram** objects: callback URL
-   `${BASE_URL}/webhook`, verify token `WEBHOOK_VERIFY_TOKEN`, fields `messages` and
-   `messaging_postbacks`. (Each connected Page is subscribed to the app automatically.)
+   `${BASE_URL}/webhook`, verify token `WEBHOOK_VERIFY_TOKEN`, fields `messages`,
+   `messaging_postbacks` and `message_echoes` (echoes are how the app notices staff replying
+   from the Meta inbox). Each connected Page is subscribed to the app automatically; Pages
+   connected before `message_echoes` was added need to reconnect once (send a new connect link).
 4. Request **Advanced Access** via App Review for `pages_show_list`, `pages_messaging`,
-   `pages_manage_metadata`, `instagram_basic` and `instagram_manage_messages`. Until approved,
-   only people with a role on the app can connect a Page or chat with the bot.
+   `pages_manage_metadata`, `instagram_basic` and `instagram_manage_messages`, plus the
+   **Human Agent** feature if staff will reply more than 24 hours after a customer's last
+   message. Until approved, only people with a role on the app can connect a Page or chat with
+   the bot.
 
 A shop's Instagram account must be a professional account linked to its Facebook Page, and the
 shop must enable **Allow access to messages** in the Instagram app's privacy settings.

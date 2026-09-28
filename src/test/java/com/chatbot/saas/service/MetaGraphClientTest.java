@@ -71,7 +71,7 @@ class MetaGraphClientTest {
 
         ClientRequest request = requests.get(0);
         assertEquals("/v23.0/p1/subscribed_apps", request.url().getPath());
-        assertTrue(request.url().getQuery().contains("subscribed_fields=messages,messaging_postbacks"));
+        assertTrue(request.url().getQuery().contains("subscribed_fields=messages,messaging_postbacks,message_echoes"));
         assertEquals("Bearer page-token", request.headers().getFirst(HttpHeaders.AUTHORIZATION));
     }
 

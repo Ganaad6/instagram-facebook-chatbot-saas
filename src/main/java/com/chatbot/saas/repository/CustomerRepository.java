@@ -21,6 +21,13 @@ public interface CustomerRepository extends JpaRepository<Customer, Long> {
      * Row-locks the customer until the surrounding transaction ends. Used to process one
      * customer's messages strictly one at a time (see MessageHandlerService).
      */
+    /** Waiting for a person first (oldest request first), then other paused customers. */
+    @Query("select c from Customer c where c.business.id = :businessId "
+            + "and (c.handoffRequestedAt is not null or c.botPausedUntil > :now) "
+            + "order by case when c.handoffRequestedAt is null then 1 else 0 end, "
+            + "c.handoffRequestedAt asc, c.lastInteractionAt desc")
+    List<Customer> findInbox(@Param("businessId") Long businessId, @Param("now") java.time.LocalDateTime now);
+
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select c from Customer c where c.id = :id")
     Optional<Customer> findByIdForUpdate(@Param("id") Long id);

@@ -2,18 +2,23 @@ package com.chatbot.saas.service;
 
 import com.chatbot.saas.dto.response.MessageResponse;
 import com.chatbot.saas.entity.Conversation;
+import com.chatbot.saas.entity.Customer;
 import com.chatbot.saas.entity.Message;
 import com.chatbot.saas.repository.MessageRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 /**
- * Records the conversation transcript - customer messages and the bot's replies - so a
+ * Records the transcript - customer messages, the bot's replies and staff replies - so a
  * conversation's history can be read back in full.
  */
 @Service
@@ -28,7 +33,8 @@ public class MessageLogService {
     }
 
     public void recordInbound(Conversation conversation, String metaMessageId, String content) {
-        save(conversation, metaMessageId, content, Message.Direction.INBOUND);
+        save(conversation.getCustomer(), conversation, metaMessageId, content,
+                Message.Direction.INBOUND, Message.SenderType.CUSTOMER);
     }
 
     /**
@@ -39,7 +45,19 @@ public class MessageLogService {
         if (metaMessageId == null) {
             return;
         }
-        save(conversation, metaMessageId, content, Message.Direction.OUTBOUND);
+        save(conversation.getCustomer(), conversation, metaMessageId, content,
+                Message.Direction.OUTBOUND, Message.SenderType.BOT);
+    }
+
+    /** Records a message a staff member sent, via the API or the shop's Meta inbox. */
+    public void recordAgent(Customer customer, Conversation conversation, String metaMessageId, String content) {
+        save(customer, conversation, metaMessageId, content, Message.Direction.OUTBOUND, Message.SenderType.AGENT);
+    }
+
+    /** When the customer last wrote to the shop - Meta's reply windows are counted from this. */
+    public Optional<LocalDateTime> lastInboundAt(Long customerId) {
+        return messageRepository.findFirstByCustomerIdAndDirectionOrderByIdDesc(customerId, Message.Direction.INBOUND)
+                .map(Message::getSentAt);
     }
 
     /** The conversation's transcript in the order it happened. Caller must check tenant access. */
@@ -50,13 +68,29 @@ public class MessageLogService {
                 .toList();
     }
 
-    private void save(Conversation conversation, String metaMessageId, String content, Message.Direction direction) {
+    /**
+     * The customer's most recent messages across all their conversations, oldest first.
+     * Caller must check tenant access.
+     */
+    @Transactional(readOnly = true)
+    public List<MessageResponse> getCustomerHistory(Long customerId, int limit) {
+        List<MessageResponse> newestFirst = new ArrayList<>(messageRepository
+                .findAllByCustomerIdOrderByIdDesc(customerId, PageRequest.of(0, limit)).stream()
+                .map(MessageResponse::from)
+                .toList());
+        Collections.reverse(newestFirst);
+        return newestFirst;
+    }
+
+    private void save(Customer customer, Conversation conversation, String metaMessageId, String content,
+                      Message.Direction direction, Message.SenderType senderType) {
         messageRepository.save(Message.builder()
                 .conversation(conversation)
-                .customer(conversation.getCustomer())
-                .business(conversation.getBusiness())
+                .customer(customer)
+                .business(customer.getBusiness())
                 .messageId(metaMessageId != null ? metaMessageId : UUID.randomUUID().toString())
                 .direction(direction)
+                .senderType(senderType)
                 .content(content)
                 .sentAt(LocalDateTime.now())
                 .createdAt(LocalDateTime.now())

@@ -10,6 +10,10 @@ import org.springframework.web.reactive.function.client.WebClient;
 
 import java.util.Map;
 
+/**
+ * Pushes events to the business's notification webhook URL (if configured): new orders, and
+ * customers asking to talk to a person.
+ */
 @Service
 @RequiredArgsConstructor
 @Slf4j
@@ -36,17 +40,45 @@ public class OrderNotificationService {
                     Map.entry("address", order.getAddress() != null ? order.getAddress() : ""),
                     Map.entry("status", order.getStatus().name())
             );
-            webClientBuilder.build()
-                    .post()
-                    .uri(business.getNotificationWebhookUrl())
-                    .bodyValue(payload)
-                    .retrieve()
-                    .bodyToMono(String.class)
-                    .doOnSuccess(r -> log.info("Notification sent for order {} to {}", order.getId(), business.getNotificationWebhookUrl()))
-                    .doOnError(e -> log.warn("Failed to send notification for order {}: {}", order.getId(), e.getMessage()))
-                    .subscribe();
+            post(business.getNotificationWebhookUrl(), payload, "order " + order.getId());
         } catch (Exception e) {
             log.warn("Could not send order notification: {}", e.getMessage());
         }
+    }
+
+    /**
+     * A customer asked for a person; the bot is paused for them until staff reply or resume it.
+     * Takes plain values (not entities) since it runs on another thread after the caller's
+     * transaction may have ended.
+     */
+    @Async
+    public void notifyHandoffRequested(String webhookUrl, Long businessId, Long customerId,
+                                       String platform, String message) {
+        if (webhookUrl == null || webhookUrl.isBlank()) {
+            return;
+        }
+        try {
+            Map<String, Object> payload = Map.of(
+                    "event", "HANDOFF_REQUESTED",
+                    "businessId", businessId,
+                    "customerId", customerId,
+                    "platform", platform,
+                    "message", message != null ? message : "");
+            post(webhookUrl, payload, "handoff for customer " + customerId);
+        } catch (Exception e) {
+            log.warn("Could not send handoff notification: {}", e.getMessage());
+        }
+    }
+
+    private void post(String url, Map<String, Object> payload, String what) {
+        webClientBuilder.build()
+                .post()
+                .uri(url)
+                .bodyValue(payload)
+                .retrieve()
+                .bodyToMono(String.class)
+                .doOnSuccess(r -> log.info("Notification sent for {}", what))
+                .doOnError(e -> log.warn("Failed to send notification for {}: {}", what, e.getMessage()))
+                .subscribe();
     }
 }

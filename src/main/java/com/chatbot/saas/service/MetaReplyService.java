@@ -48,6 +48,28 @@ public class MetaReplyService {
     }
 
     /**
+     * Send a message written by a staff member. Inside Meta's 24-hour window after the
+     * customer's last message this is an ordinary reply; after that (up to 7 days) Meta only
+     * accepts it with the HUMAN_AGENT tag, which requires the Human Agent permission from App
+     * Review.
+     *
+     * @return Meta's message id, or null if the message could not be delivered
+     */
+    public String sendAgentText(String recipientId, String text, boolean humanAgentTag, String accessToken) {
+        log.debug("Sending agent text to {} (humanAgentTag={})", recipientId, humanAgentTag);
+        Map<String, Object> body = new HashMap<>();
+        body.put("recipient", Map.of("id", recipientId));
+        body.put("message", Map.of("text", text));
+        if (humanAgentTag) {
+            body.put("messaging_type", "MESSAGE_TAG");
+            body.put("tag", "HUMAN_AGENT");
+        } else {
+            body.put("messaging_type", "RESPONSE");
+        }
+        return doPost(body, accessToken, recipientId);
+    }
+
+    /**
      * Send an image attachment message (product photo).
      *
      * @return Meta's message id, or null if the message could not be delivered

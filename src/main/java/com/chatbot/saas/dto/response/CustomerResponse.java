@@ -15,6 +15,8 @@ public class CustomerResponse {
     private String facebookUserId;
     private LocalDateTime firstInteractionAt;
     private LocalDateTime lastInteractionAt;
+    private LocalDateTime botPausedUntil;
+    private LocalDateTime handoffRequestedAt;
 
     public static CustomerResponse from(Customer customer) {
         return CustomerResponse.builder()
@@ -24,6 +26,8 @@ public class CustomerResponse {
                 .facebookUserId(customer.getFacebookUserId())
                 .firstInteractionAt(customer.getFirstInteractionAt())
                 .lastInteractionAt(customer.getLastInteractionAt())
+                .botPausedUntil(customer.getBotPausedUntil())
+                .handoffRequestedAt(customer.getHandoffRequestedAt())
                 .build();
     }
 }

@@ -3,6 +3,7 @@ package com.chatbot.saas.service;
 import com.chatbot.saas.dto.response.CustomerResponse;
 import com.chatbot.saas.entity.Business;
 import com.chatbot.saas.entity.Customer;
+import com.chatbot.saas.exception.CustomerNotFoundException;
 import com.chatbot.saas.repository.CustomerRepository;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -37,14 +38,50 @@ public class CustomerService {
      */
     @Transactional
     public Customer findOrCreateAndLock(Business business, String platformUserId, String platform) {
+        Customer customer = findOrCreateAndLockWithoutTouching(business, platformUserId, platform);
+        customer.setLastInteractionAt(LocalDateTime.now());
+        return customer;
+    }
+
+    /**
+     * Same lock, for events that aren't the customer writing (e.g. an echo of a staff reply),
+     * so lastInteractionAt keeps meaning "when the customer last wrote".
+     */
+    @Transactional
+    public Customer findOrCreateAndLockWithoutTouching(Business business, String platformUserId, String platform) {
         Long customerId = find(business.getId(), platformUserId, platform)
                 .map(Customer::getId)
                 .orElseGet(() -> create(business, platformUserId, platform));
 
-        Customer customer = customerRepository.findByIdForUpdate(customerId)
+        return customerRepository.findByIdForUpdate(customerId)
                 .orElseThrow(() -> new IllegalStateException("Customer disappeared: " + customerId));
-        customer.setLastInteractionAt(LocalDateTime.now());
-        return customer;
+    }
+
+    /**
+     * Row-locks a customer for a staff action, serializing it with the customer's incoming
+     * messages. A customer of another business is reported as not found.
+     */
+    @Transactional
+    public Customer lockForBusiness(Long businessId, Long customerId) {
+        return customerRepository.findByIdForUpdate(customerId)
+                .filter(c -> c.getBusiness().getId().equals(businessId))
+                .orElseThrow(() -> new CustomerNotFoundException(customerId));
+    }
+
+    /** Throws CustomerNotFoundException unless the customer belongs to the business. */
+    @Transactional(readOnly = true)
+    public void assertBelongsTo(Long businessId, Long customerId) {
+        customerRepository.findById(customerId)
+                .filter(c -> c.getBusiness().getId().equals(businessId))
+                .orElseThrow(() -> new CustomerNotFoundException(customerId));
+    }
+
+    /** Customers a staff member should look at: bot paused for them, or they asked for a person. */
+    @Transactional(readOnly = true)
+    public List<CustomerResponse> getInbox(Long businessId) {
+        return customerRepository.findInbox(businessId, LocalDateTime.now()).stream()
+                .map(CustomerResponse::from)
+                .collect(Collectors.toList());
     }
 
     /**

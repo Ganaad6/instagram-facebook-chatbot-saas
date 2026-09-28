@@ -105,12 +105,15 @@ public class MetaGraphClient {
         return pages;
     }
 
-    /** Subscribes our app to the Page's messaging webhooks - without this Meta never delivers messages. */
+    /**
+     * Subscribes our app to the Page's messaging webhooks - without this Meta never delivers
+     * messages. message_echoes lets the app notice staff replying from the shop's Meta inbox.
+     */
     public void subscribePageToWebhooks(String pageId, String pageAccessToken) {
         JsonNode response = call(() -> metaWebClient.post()
                 .uri(uriBuilder -> uriBuilder
                         .path("/{pageId}/subscribed_apps")
-                        .queryParam("subscribed_fields", "messages,messaging_postbacks")
+                        .queryParam("subscribed_fields", "messages,messaging_postbacks,message_echoes")
                         .build(pageId))
                 .headers(h -> h.setBearerAuth(pageAccessToken))
                 .retrieve()

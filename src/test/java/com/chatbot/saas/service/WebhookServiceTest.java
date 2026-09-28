@@ -1,6 +1,7 @@
 package com.chatbot.saas.service;
 
 import com.chatbot.saas.exception.WebhookAuthenticationException;
+import com.chatbot.saas.service.MessageHandlerService.EchoMessage;
 import com.chatbot.saas.service.MessageHandlerService.InboundMessage;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.apache.commons.codec.digest.HmacAlgorithms;
@@ -68,13 +69,15 @@ class WebhookServiceTest {
     }
 
     @Test
-    void echoesAreIgnored() {
+    void echoesAreRoutedToEchoHandlerNotTreatedAsCustomerMessages() {
         String payload = """
                 {"object":"page","entry":[{"messaging":[{"sender":{"id":"page-1"},"recipient":{"id":"psid"},
-                 "message":{"mid":"m_4","text":"hi","is_echo":true}}]}]}""";
+                 "message":{"mid":"m_4","text":"hi from staff","is_echo":true,"app_id":263902037430900}}]}]}""";
         webhookService.processWebhookEvent(payload, sign(payload));
 
         verify(messageHandlerService, never()).handleIncomingMessage(any());
+        verify(messageHandlerService).handleEcho(
+                new EchoMessage("FACEBOOK", "page-1", "psid", "m_4", "hi from staff", "263902037430900"));
     }
 
     @Test

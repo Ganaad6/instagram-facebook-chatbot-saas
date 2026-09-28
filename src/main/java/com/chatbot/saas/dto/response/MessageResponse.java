@@ -12,6 +12,8 @@ public class MessageResponse {
     private Long id;
     /** INBOUND = from the customer, OUTBOUND = sent by the bot. */
     private Message.Direction direction;
+    /** CUSTOMER, BOT, or AGENT (a staff member). */
+    private Message.SenderType senderType;
     private String content;
     private LocalDateTime sentAt;
 
@@ -19,6 +21,7 @@ public class MessageResponse {
         return MessageResponse.builder()
                 .id(message.getId())
                 .direction(message.getDirection())
+                .senderType(message.getSenderType())
                 .content(message.getContent())
                 .sentAt(message.getSentAt())
                 .build();

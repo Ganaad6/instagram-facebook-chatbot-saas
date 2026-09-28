@@ -71,7 +71,7 @@ public class ChatbotEngineService {
         Conversation.State state = conversation.getState();
         log.debug("Processing state={} platform={}", state, platform);
 
-        if (state != Conversation.State.IDLE && isRestart(input)) {
+        if (state != Conversation.State.IDLE && isRestartKeyword(input)) {
             resetSelections(conversation);
             showCategories(chat);
             return;
@@ -332,8 +332,9 @@ public class ChatbotEngineService {
         showCategories(chat);
     }
 
-    private boolean isRestart(String input) {
-        return RESTART_KEYWORDS.contains(input.trim().toLowerCase(Locale.ROOT));
+    /** Menu keywords ("цэс", "menu", ...) that send the customer back to the category menu. */
+    public static boolean isRestartKeyword(String input) {
+        return input != null && RESTART_KEYWORDS.contains(input.trim().toLowerCase(Locale.ROOT));
     }
 
     private void resetSelections(Conversation conversation) {

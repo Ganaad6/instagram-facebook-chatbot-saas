@@ -75,8 +75,27 @@ The order-notification webhook sends `{"event": "NEW_ORDER", "orderId", "busines
 - `GET /api/conversations?businessId=` - List conversations
 - `GET /api/conversations/{id}` - Get conversation (must belong to your business)
 - `GET /api/conversations/{id}/messages` - Full transcript, oldest first: customer messages
-  (`INBOUND`) and the bot's delivered replies (`OUTBOUND`)
+  (`INBOUND`) and delivered replies (`OUTBOUND`); `senderType` tells bot and staff replies apart
 - `GET /api/conversations/{id}/data` - Get conversation data
+
+## Human handoff (staff inbox)
+All under `/api/businesses/{businessId}`, API key required.
+- `GET /inbox` - Customers who asked for a person (oldest request first), then others the bot is
+  currently paused for. Each includes `botPausedUntil` and `handoffRequestedAt`.
+- `GET /customers/{customerId}/messages?limit=100` - The customer's latest messages across all
+  conversations (max 500), oldest first. `senderType` is `CUSTOMER`, `BOT` or `AGENT`.
+- `POST /customers/{customerId}/messages` `{"text": "..."}` - Reply as a staff member (max 2000
+  chars). Pauses the bot for this customer. Within 24h of the customer's last message this is a
+  normal reply; between 24h and 7 days it's sent with Meta's `HUMAN_AGENT` tag (needs the Human
+  Agent permission from App Review); after 7 days → `409`. `502` if Meta rejects the message.
+- `POST /customers/{customerId}/pause-bot?hours=` - Silence the bot for this customer (default
+  `CHATBOT_HANDOFF_TIMEOUT_HOURS`, 1-168).
+- `POST /customers/{customerId}/resume-bot` - Hand back to the bot; the unfinished bot
+  conversation is abandoned so the customer's next message starts fresh.
+
+A customer of another business returns `404`. The order-notification webhook also receives
+`{"event": "HANDOFF_REQUESTED", "businessId", "customerId", "platform", "message"}` when a
+customer asks for a person.
 
 ## Customers
 - `GET /api/customers?businessId=` - List customers

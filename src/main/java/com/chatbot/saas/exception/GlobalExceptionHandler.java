@@ -39,6 +39,22 @@ public class GlobalExceptionHandler {
         return ResponseEntity.status(HttpStatus.FORBIDDEN).body(body);
     }
 
+    @ExceptionHandler(MessagingWindowClosedException.class)
+    public ResponseEntity<Map<String, Object>> handleMessagingWindowClosed(MessagingWindowClosedException ex) {
+        Map<String, Object> body = new HashMap<>();
+        body.put("error", ex.getMessage());
+        body.put("status", 409);
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(body);
+    }
+
+    @ExceptionHandler(MetaSendFailedException.class)
+    public ResponseEntity<Map<String, Object>> handleMetaSendFailed(MetaSendFailedException ex) {
+        Map<String, Object> body = new HashMap<>();
+        body.put("error", ex.getMessage());
+        body.put("status", 502);
+        return ResponseEntity.status(HttpStatus.BAD_GATEWAY).body(body);
+    }
+
     @ExceptionHandler(ValidationException.class)
     public ResponseEntity<Map<String, Object>> handleValidation(ValidationException ex) {
         Map<String, Object> body = new HashMap<>();

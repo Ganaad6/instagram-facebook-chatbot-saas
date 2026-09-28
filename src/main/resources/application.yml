@@ -51,6 +51,8 @@ webhook:
 chatbot:
   # An unfinished conversation idle this long is abandoned; the customer's next message starts over
   conversation-timeout-hours: ${CHATBOT_CONVERSATION_TIMEOUT_HOURS:24}
+  # How long the bot stays silent for a customer after they ask for a person or staff reply
+  handoff-timeout-hours: ${CHATBOT_HANDOFF_TIMEOUT_HOURS:12}
 
 directus:
   public-url: ${DIRECTUS_PUBLIC_URL:}

@@ -1,6 +1,7 @@
 package com.chatbot.saas.service;
 
 import com.chatbot.saas.exception.WebhookAuthenticationException;
+import com.chatbot.saas.service.MessageHandlerService.EchoMessage;
 import com.chatbot.saas.service.MessageHandlerService.InboundMessage;
 import com.chatbot.saas.util.SignatureValidator;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -80,8 +81,15 @@ public class WebhookService {
 
         if (messagingEvent.has("message")) {
             JsonNode message = messagingEvent.path("message");
-            // Skip echoes of the page's own messages and "unsent" notifications
-            if (message.path("is_echo").asBoolean(false) || message.path("is_deleted").asBoolean(false)) {
+            if (message.path("is_deleted").asBoolean(false)) {
+                return; // the customer unsent a message
+            }
+            if (message.path("is_echo").asBoolean(false)) {
+                // A message the shop's account sent: the sender is the shop, the recipient the
+                // customer. Either this app's own reply or staff typing in the Meta inbox.
+                messageHandlerService.handleEcho(new EchoMessage(platform, senderId, recipientId,
+                        message.path("mid").asText(null), message.path("text").asText(""),
+                        message.path("app_id").asText(null)));
                 return;
             }
             // Tapping a quick reply sends its title as text; the payload holds the menu number
