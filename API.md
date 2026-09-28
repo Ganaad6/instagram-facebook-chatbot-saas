@@ -23,13 +23,22 @@ time - it is never shown again, only re-issued.
 - `POST /api/admin/businesses/{id}/activate` - Reactivate a suspended business
 - `POST /api/admin/businesses/{id}/rotate-api-key` - Issue a new API key for a business (e.g. if
   the old one leaked); returns the new key once
+- `GET /api/admin/businesses/{id}/meta-connect-url` - Generate a Facebook/Instagram connect link
+  for a business, to send to the shop owner (same response as `/api/auth/meta/authorize`)
 - `DELETE /api/admin/businesses/{id}` - Permanently delete a business
 
 ## OAuth
-- `GET /api/auth/meta/authorize?businessId=` - Get Meta OAuth URL (redirect)
+- `GET /api/auth/meta/authorize?businessId=` - Returns `{"authorizationUrl", "expiresInMinutes"}`
+  as JSON (not a redirect - a browser can't send `X-API-Key`). Open the URL in a browser to
+  connect the business's Facebook Page and its linked Instagram professional account.
 - `GET /api/auth/meta/callback?code=&state=` - OAuth callback (**Public** - trust comes from the
-  signed `state`, not an API key, since Meta redirects the browser here directly)
-- `POST /api/auth/meta/refresh?businessId=` - Refresh token
+  signed `state`, not an API key, since Meta redirects the browser here directly). Exchanges the
+  code for a long-lived token, picks the Page (the business's `facebookPageId` if set, otherwise
+  the only Page shared), subscribes it to the webhook, stores its non-expiring Page token and
+  fills in `facebookPageId` / `instagramAccountId`. Returns an HTML result page.
+
+Page tokens don't expire, so there is no refresh endpoint. If the owner revokes access or
+changes their Facebook password, send them a new connect link.
 
 ## Webhook (**Public** - HMAC-signature verified instead of API key)
 - `GET /webhook` - Webhook verification

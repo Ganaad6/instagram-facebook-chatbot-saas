@@ -1,18 +1,20 @@
 package com.chatbot.saas.service;
 
 import com.chatbot.saas.entity.Business;
+import com.chatbot.saas.exception.BusinessNotFoundException;
+import com.chatbot.saas.exception.MetaConnectException;
 import com.chatbot.saas.repository.BusinessRepository;
+import com.chatbot.saas.service.MetaGraphClient.PageAccount;
 import com.chatbot.saas.util.EncryptionUtil;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
-import org.springframework.web.reactive.function.client.WebClient;
+import org.springframework.util.StringUtils;
 import org.springframework.web.util.UriComponentsBuilder;
 
-import java.time.LocalDateTime;
-import java.util.Map;
+import java.util.List;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -20,87 +22,124 @@ import java.util.Map;
 public class OAuthService {
 
     private final BusinessRepository businessRepository;
-    private final WebClient metaWebClient;
+    private final MetaGraphClient metaGraphClient;
     private final OAuthStateService oAuthStateService;
     private final EncryptionUtil encryptionUtil;
 
     @Value("${meta.app.id}")
     private String appId;
 
-    @Value("${meta.app.secret}")
-    private String appSecret;
-
-    @Value("${meta.app.token-expiry-days:60}")
-    private int tokenExpiryDays;
+    @Value("${meta.graph.api.version}")
+    private String graphApiVersion;
 
     @Value("${meta.oauth.redirect-uri}")
     private String redirectUri;
 
+    @Value("${meta.oauth.scopes}")
+    private String scopes;
+
     public String generateAuthorizationUrl(Long businessId) {
         String state = oAuthStateService.createState(businessId);
-        return UriComponentsBuilder.fromUriString("https://www.facebook.com/v18.0/dialog/oauth")
+        return UriComponentsBuilder.fromUriString("https://www.facebook.com/" + graphApiVersion + "/dialog/oauth")
                 .queryParam("client_id", appId)
                 .queryParam("redirect_uri", redirectUri)
-                .queryParam("scope", "instagram_basic,instagram_manage_messages,pages_messaging,pages_show_list")
+                .queryParam("scope", scopes)
                 .queryParam("response_type", "code")
                 .queryParam("state", state)
                 .build()
                 .toUriString();
     }
 
-    @Transactional
-    public void handleCallback(String code, String state) {
-        Long businessId = oAuthStateService.parseAndValidate(state);
-        log.debug("Handling OAuth callback for business {}", businessId);
-        Map<?, ?> tokenResponse = metaWebClient.get()
-                .uri(uriBuilder -> uriBuilder
-                        .path("/oauth/access_token")
-                        .queryParam("client_id", appId)
-                        .queryParam("client_secret", appSecret)
-                        .queryParam("redirect_uri", redirectUri)
-                        .queryParam("code", code)
-                        .build())
-                .retrieve()
-                .bodyToMono(Map.class)
-                .block();
+    public long getAuthorizationUrlTtlMinutes() {
+        return oAuthStateService.getTtlMinutes();
+    }
 
-        if (tokenResponse != null && tokenResponse.containsKey("access_token")) {
-            Business business = businessRepository.findById(businessId)
-                    .orElseThrow(() -> new RuntimeException("Business not found: " + businessId));
-            business.setAccessToken(encryptionUtil.encrypt(tokenResponse.get("access_token").toString()));
-            business.setTokenExpiresAt(LocalDateTime.now().plusDays(tokenExpiryDays));
-            businessRepository.save(business);
-            log.info("Access token saved for business {}", businessId);
+    /**
+     * Completes the "connect Facebook/Instagram" flow:
+     * code → short-lived user token → long-lived user token → Page token (non-expiring),
+     * then subscribes the Page to our webhook and records the Page / Instagram IDs used to
+     * route incoming messages to this business.
+     *
+     * @return the connected business
+     */
+    public Business handleCallback(String code, String state) {
+        Long businessId = oAuthStateService.parseAndValidate(state);
+        Business business = businessRepository.findById(businessId)
+                .orElseThrow(() -> new BusinessNotFoundException(businessId));
+        log.debug("Handling OAuth callback for business {}", businessId);
+
+        String shortLivedToken = metaGraphClient.exchangeCodeForUserToken(code);
+        String longLivedToken = metaGraphClient.exchangeForLongLivedUserToken(shortLivedToken);
+        PageAccount page = selectPage(business, metaGraphClient.listPages(longLivedToken));
+
+        assertNotLinkedElsewhere(business, page);
+        metaGraphClient.subscribePageToWebhooks(page.pageId(), page.pageAccessToken());
+
+        business.setFacebookPageId(page.pageId());
+        business.setInstagramAccountId(page.instagramAccountId());
+        business.setAccessToken(encryptionUtil.encrypt(page.pageAccessToken()));
+        // Page tokens derived from a long-lived user token don't expire; they're only
+        // invalidated if the owner revokes access or changes their password (reconnect then).
+        business.setTokenExpiresAt(null);
+        Business saved = businessRepository.save(business);
+        log.info("Business {} connected to page {} (instagram={})",
+                businessId, page.pageId(), page.instagramAccountId());
+        return saved;
+    }
+
+    /**
+     * Picks which of the granted Pages belongs to this business. If the business already has a
+     * facebookPageId configured, that one must be among the granted Pages; otherwise the owner
+     * must have granted exactly one Page so there's no guessing.
+     */
+    private PageAccount selectPage(Business business, List<PageAccount> pages) {
+        List<PageAccount> usable = pages.stream()
+                .filter(p -> StringUtils.hasText(p.pageAccessToken()))
+                .toList();
+        if (usable.isEmpty()) {
+            throw new MetaConnectException(
+                    "No Facebook Page was shared with the app. Reconnect and select the Page linked to your shop.");
+        }
+
+        if (StringUtils.hasText(business.getFacebookPageId())) {
+            return usable.stream()
+                    .filter(p -> p.pageId().equals(business.getFacebookPageId()))
+                    .findFirst()
+                    .orElseThrow(() -> new MetaConnectException(
+                            "The configured Facebook Page " + business.getFacebookPageId()
+                                    + " was not among the Pages shared: " + describe(usable)));
+        }
+
+        if (usable.size() > 1) {
+            throw new MetaConnectException(
+                    "Multiple Facebook Pages were shared (" + describe(usable) + "). Set facebookPageId on "
+                            + "the business to the one to use, or reconnect selecting only that Page.");
+        }
+        return usable.get(0);
+    }
+
+    private void assertNotLinkedElsewhere(Business business, PageAccount page) {
+        businessRepository.findByFacebookPageId(page.pageId())
+                .filter(other -> !other.getId().equals(business.getId()))
+                .ifPresent(other -> {
+                    throw new MetaConnectException(
+                            "Facebook Page " + page.pageId() + " is already connected to another business.");
+                });
+        if (page.instagramAccountId() != null) {
+            businessRepository.findByInstagramAccountId(page.instagramAccountId())
+                    .filter(other -> !other.getId().equals(business.getId()))
+                    .ifPresent(other -> {
+                        throw new MetaConnectException(
+                                "Instagram account " + page.instagramAccountId()
+                                        + " is already connected to another business.");
+                    });
         }
     }
 
-    @Transactional
-    public void refreshToken(Long businessId) {
-        log.debug("Refreshing token for business {}", businessId);
-        Business business = businessRepository.findById(businessId)
-                .orElseThrow(() -> new RuntimeException("Business not found: " + businessId));
-
-        if (business.getAccessToken() == null) {
-            throw new RuntimeException("No access token to refresh for business: " + businessId);
-        }
-
-        Map<?, ?> tokenResponse = metaWebClient.get()
-                .uri(uriBuilder -> uriBuilder
-                        .path("/oauth/access_token")
-                        .queryParam("grant_type", "fb_exchange_token")
-                        .queryParam("client_id", appId)
-                        .queryParam("client_secret", appSecret)
-                        .queryParam("fb_exchange_token", getDecryptedAccessToken(business))
-                        .build())
-                .retrieve()
-                .bodyToMono(Map.class)
-                .block();
-
-        if (tokenResponse != null && tokenResponse.containsKey("access_token")) {
-            business.setAccessToken(encryptionUtil.encrypt(tokenResponse.get("access_token").toString()));
-            business.setTokenExpiresAt(LocalDateTime.now().plusDays(tokenExpiryDays));
-            businessRepository.save(business);
-        }
+    private String describe(List<PageAccount> pages) {
+        return pages.stream()
+                .map(p -> p.name() + " [" + p.pageId() + "]")
+                .collect(Collectors.joining(", "));
     }
 
     /**

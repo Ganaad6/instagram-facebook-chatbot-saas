@@ -3,11 +3,13 @@ package com.chatbot.saas.controller;
 import com.chatbot.saas.dto.response.BusinessRegistrationResponse;
 import com.chatbot.saas.dto.response.BusinessResponse;
 import com.chatbot.saas.service.BusinessService;
+import com.chatbot.saas.service.OAuthService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.Map;
 
 /**
  * Operator-only endpoints for onboarding and lifecycle management of tenant businesses.
@@ -21,6 +23,7 @@ import java.util.List;
 public class AdminController {
 
     private final BusinessService businessService;
+    private final OAuthService oAuthService;
 
     @GetMapping
     public ResponseEntity<List<BusinessResponse>> listBusinesses() {
@@ -40,6 +43,18 @@ public class AdminController {
     @PostMapping("/{id}/rotate-api-key")
     public ResponseEntity<BusinessRegistrationResponse> rotateApiKey(@PathVariable Long id) {
         return ResponseEntity.ok(businessService.rotateApiKey(id));
+    }
+
+    /**
+     * Generates a Facebook/Instagram connect link for a business, to send to the shop owner
+     * during onboarding. The owner opens it, logs in to Facebook and picks their Page.
+     */
+    @GetMapping("/{id}/meta-connect-url")
+    public ResponseEntity<Map<String, Object>> metaConnectUrl(@PathVariable Long id) {
+        businessService.getBusinessById(id);
+        return ResponseEntity.ok(Map.of(
+                "authorizationUrl", oAuthService.generateAuthorizationUrl(id),
+                "expiresInMinutes", oAuthService.getAuthorizationUrlTtlMinutes()));
     }
 
     @DeleteMapping("/{id}")

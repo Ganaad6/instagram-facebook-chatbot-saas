@@ -18,13 +18,22 @@ import java.util.Base64;
 @Service
 public class OAuthStateService {
 
-    private static final long EXPIRY_MINUTES = 15;
-
     @Value("${oauth.state-secret}")
     private String secret;
 
+    /**
+     * How long a connect link stays valid. Long enough for an operator to send the link to a
+     * shop owner and have them open it, short enough that a leaked link soon stops working.
+     */
+    @Value("${oauth.state-ttl-minutes:60}")
+    private long ttlMinutes = 60;
+
+    public long getTtlMinutes() {
+        return ttlMinutes;
+    }
+
     public String createState(Long businessId) {
-        long expiresAt = System.currentTimeMillis() / 1000 + (EXPIRY_MINUTES * 60);
+        long expiresAt = System.currentTimeMillis() / 1000 + (ttlMinutes * 60);
         String payload = businessId + "." + expiresAt;
         String signature = sign(payload);
         return Base64.getUrlEncoder().withoutPadding()

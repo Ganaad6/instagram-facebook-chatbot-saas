@@ -15,6 +15,8 @@ public class BusinessResponse {
     private String instagramAccountId;
     private String facebookPageId;
     private Business.Status status;
+    /** True once the owner completed the Meta connect flow and a Page token is stored. */
+    private boolean metaConnected;
     private LocalDateTime createdAt;
 
     public static BusinessResponse from(Business business) {
@@ -25,6 +27,7 @@ public class BusinessResponse {
                 .instagramAccountId(business.getInstagramAccountId())
                 .facebookPageId(business.getFacebookPageId())
                 .status(business.getStatus())
+                .metaConnected(business.getAccessToken() != null)
                 .createdAt(business.getCreatedAt())
                 .build();
     }

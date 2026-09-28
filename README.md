@@ -55,6 +55,11 @@ curl -u "$ADMIN_USERNAME:$ADMIN_PASSWORD" -X POST https://your-host/api/admin/bu
 # Reactivate once paid
 curl -u "$ADMIN_USERNAME:$ADMIN_PASSWORD" -X POST https://your-host/api/admin/businesses/{id}/activate
 
+# Get a Facebook/Instagram connect link to send to the shop owner (valid for
+# OAUTH_STATE_TTL_MINUTES, default 60). They open it, log in and pick their Page; the app then
+# stores the Page token, subscribes the Page to the webhook and fills in the Page/Instagram IDs.
+curl -u "$ADMIN_USERNAME:$ADMIN_PASSWORD" https://your-host/api/admin/businesses/{id}/meta-connect-url
+
 # Rotate a business's API key (e.g. if it leaked) - returns the new key once
 curl -u "$ADMIN_USERNAME:$ADMIN_PASSWORD" -X POST https://your-host/api/admin/businesses/{id}/rotate-api-key
 ```
@@ -83,6 +88,8 @@ Fly.io, AWS, etc.) without cloud lock-in.
 | `DATABASE_URL`, `DATABASE_USERNAME`, `DATABASE_PASSWORD` | PostgreSQL connection |
 | `META_APP_ID`, `META_APP_SECRET` | Meta app credentials |
 | `BASE_URL` | Public URL used to build the OAuth redirect URI |
+| `META_GRAPH_API_VERSION` | Graph API version (default `v23.0`) - bump before Meta retires it |
+| `OAUTH_STATE_TTL_MINUTES` | How long a connect link stays valid (default 60) |
 | `WEBHOOK_VERIFY_TOKEN` | Verifies Meta's webhook subscription handshake |
 | `ENCRYPTION_SECRET_KEY` | AES-GCM key (16/24/32 bytes) encrypting stored Meta access tokens |
 | `OAUTH_STATE_SECRET` | Signs the OAuth `state` parameter - must differ from `ENCRYPTION_SECRET_KEY` |
@@ -94,6 +101,21 @@ Fly.io, AWS, etc.) without cloud lock-in.
 
 `.github/workflows/ci.yml` runs `mvn -B verify` (build + full test suite) on every push/PR to
 `main`.
+
+## Meta app setup (one time)
+
+1. In the Meta developer dashboard, add the **Messenger** and **Instagram** products (Instagram
+   messaging via the Messenger Platform, i.e. Facebook Login - not "Instagram Login").
+2. Add `${BASE_URL}/api/auth/meta/callback` as a valid OAuth redirect URI under Facebook Login.
+3. Configure webhooks for both the **Page** and **Instagram** objects: callback URL
+   `${BASE_URL}/webhook`, verify token `WEBHOOK_VERIFY_TOKEN`, fields `messages` and
+   `messaging_postbacks`. (Each connected Page is subscribed to the app automatically.)
+4. Request **Advanced Access** via App Review for `pages_show_list`, `pages_messaging`,
+   `pages_manage_metadata`, `instagram_basic` and `instagram_manage_messages`. Until approved,
+   only people with a role on the app can connect a Page or chat with the bot.
+
+A shop's Instagram account must be a professional account linked to its Facebook Page, and the
+shop must enable **Allow access to messages** in the Instagram app's privacy settings.
 
 ## Self-serve catalog management (Directus)
 
