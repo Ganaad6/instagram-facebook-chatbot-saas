@@ -44,16 +44,6 @@ changes their Facebook password, send them a new connect link.
 - `GET /webhook` - Webhook verification
 - `POST /webhook` - Receive webhook events
 
-## Flows
-- `POST /api/flows` - Create flow (body includes `businessId`, must be your own)
-- `GET /api/flows?businessId=` - Get flows for business
-- `PUT /api/flows/{id}` - Update flow (must belong to your business)
-- `DELETE /api/flows/{id}` - Delete flow
-- `POST /api/flows/{id}/steps` - Add step
-- `PUT /api/flows/steps/{id}` - Update step
-- `DELETE /api/flows/steps/{id}` - Delete step
-- `PUT /api/flows/{id}/activate` - Activate flow
-
 ## Products / Categories / Orders / Analytics
 - `/api/businesses/{businessId}/products/**`
 - `/api/businesses/{businessId}/categories/**`
@@ -76,7 +66,6 @@ The order-notification webhook sends `{"event": "NEW_ORDER", "orderId", "busines
 - `GET /api/conversations/{id}` - Get conversation (must belong to your business)
 - `GET /api/conversations/{id}/messages` - Full transcript, oldest first: customer messages
   (`INBOUND`) and delivered replies (`OUTBOUND`); `senderType` tells bot and staff replies apart
-- `GET /api/conversations/{id}/data` - Get conversation data
 
 ## Human handoff (staff inbox)
 All under `/api/businesses/{businessId}`, API key required.

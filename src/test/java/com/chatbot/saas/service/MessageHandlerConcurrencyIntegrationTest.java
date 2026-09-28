@@ -9,6 +9,7 @@ import com.chatbot.saas.repository.CustomerRepository;
 import com.chatbot.saas.repository.MessageRepository;
 import com.chatbot.saas.service.MessageHandlerService.InboundMessage;
 import com.chatbot.saas.util.EncryptionUtil;
+import io.zonky.test.db.AutoConfigureEmbeddedDatabase;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -31,6 +32,7 @@ import static org.mockito.Mockito.*;
  * and one stored copy of each message.
  */
 @SpringBootTest
+@AutoConfigureEmbeddedDatabase(provider = AutoConfigureEmbeddedDatabase.DatabaseProvider.ZONKY)
 @ActiveProfiles("test")
 class MessageHandlerConcurrencyIntegrationTest {
 

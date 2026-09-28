@@ -6,6 +6,7 @@ import com.chatbot.saas.repository.BusinessRepository;
 import com.chatbot.saas.repository.CategoryRepository;
 import com.chatbot.saas.repository.CustomerRepository;
 import com.chatbot.saas.repository.ProductRepository;
+import io.zonky.test.db.AutoConfigureEmbeddedDatabase;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -18,6 +19,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 
 /** Runs the order analytics queries against the real (migrated) schema. */
 @SpringBootTest
+@AutoConfigureEmbeddedDatabase(provider = AutoConfigureEmbeddedDatabase.DatabaseProvider.ZONKY)
 @ActiveProfiles("test")
 class OrderAnalyticsIntegrationTest {
 

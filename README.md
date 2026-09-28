@@ -6,7 +6,6 @@ A multi-tenant Spring Boot SaaS platform for managing Instagram and Facebook cha
 - Multi-tenant business registration, authenticated via per-business API keys
 - Meta OAuth 2.0 integration (signed, expiring OAuth `state`; access tokens encrypted at rest)
 - Webhook handling for Instagram/Facebook messages (HMAC-signature verified)
-- Configurable chatbot flows with validation
 - Product catalog, orders, and a state-machine chatbot engine
 - Conversation tracking and data collection
 - Admin-only endpoints for onboarding, suspending, and reactivating tenants (manual billing)
@@ -29,7 +28,7 @@ See [API.md](API.md) for full endpoint documentation, including authentication r
 
 ## Authentication model
 
-- **Business-scoped endpoints** (`/api/businesses/**`, `/api/flows`, `/api/businesses/{id}/products`,
+- **Business-scoped endpoints** (`/api/businesses/**`, `/api/businesses/{id}/products`,
   `/api/customers`, `/api/conversations`, etc.) require an `X-API-Key` header. A business receives
   its API key exactly once, in the response to `POST /api/businesses/register` (or from an admin
   via the rotate-key endpoint below) - it cannot be retrieved again, only rotated.
@@ -141,6 +140,11 @@ Product photos live in the `directus_uploads` volume - back that up too.
 | `SPRING_PROFILES_ACTIVE` | Set to `prod` in production to enable the startup secrets check |
 
 ### CI
+
+Integration tests run against a real embedded PostgreSQL 15 (zonky embedded-postgres - no
+Docker needed; binaries are fetched from Maven Central on first run), with the same migrations
+as production. Run tests on JDK 17, as CI does: on much newer JDKs (e.g. 26) Mockito can't mock
+classes yet.
 
 `.github/workflows/ci.yml` runs `mvn -B verify` (build + full test suite) on every push/PR to
 `main`.

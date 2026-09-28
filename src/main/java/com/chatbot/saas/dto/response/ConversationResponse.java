@@ -12,8 +12,6 @@ public class ConversationResponse {
     private Long id;
     private Long customerId;
     private Long businessId;
-    private Long flowId;
-    private Long currentStepId;
     private String status;
     private String state;
     private String platform;
@@ -25,8 +23,6 @@ public class ConversationResponse {
                 .id(conversation.getId())
                 .customerId(conversation.getCustomer().getId())
                 .businessId(conversation.getBusiness().getId())
-                .flowId(conversation.getFlow() != null ? conversation.getFlow().getId() : null)
-                .currentStepId(conversation.getCurrentStep() != null ? conversation.getCurrentStep().getId() : null)
                 .status(conversation.getStatus().name())
                 .state(conversation.getState() != null ? conversation.getState().name() : null)
                 .platform(conversation.getPlatform())

@@ -12,7 +12,7 @@ import java.util.Map;
 @RestControllerAdvice
 public class GlobalExceptionHandler {
 
-    @ExceptionHandler({BusinessNotFoundException.class, FlowNotFoundException.class,
+    @ExceptionHandler({BusinessNotFoundException.class,
             CustomerNotFoundException.class, ConversationNotFoundException.class,
             CategoryNotFoundException.class, ProductNotFoundException.class,
             OrderNotFoundException.class})

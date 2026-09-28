@@ -42,14 +42,6 @@ public class Conversation {
     @JoinColumn(name = "business_id", nullable = false)
     private Business business;
 
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "flow_id")
-    private ChatbotFlow flow;
-
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "current_step_id")
-    private FlowStep currentStep;
-
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 20)
     private Status status;

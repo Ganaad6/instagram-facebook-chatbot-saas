@@ -1,0 +1,27 @@
+spring:
+  # The DataSource is an embedded PostgreSQL provided per test context by
+  # @AutoConfigureEmbeddedDatabase (zonky) - same database engine and migrations as production.
+  flyway:
+    enabled: true
+    locations: classpath:db/migration,classpath:db/postgres
+
+meta:
+  app:
+    id: test_app_id
+    secret: test_app_secret
+
+webhook:
+  verify-token: test_verify_token
+
+admin:
+  username: admin
+  password: test_admin_password
+
+oauth:
+  state-secret: test_oauth_state_secret_1234567890
+
+encryption:
+  secret-key: 0123456789abcdef0123456789abcdef
+
+cors:
+  allowed-origins: http://localhost:3000
