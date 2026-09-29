@@ -43,6 +43,8 @@ changes their Facebook password, send them a new connect link.
 ## Webhook (**Public** - HMAC-signature verified instead of API key)
 - `GET /webhook` - Webhook verification
 - `POST /webhook` - Receive webhook events
+- `GET|POST /webhook/qpay/{orderId}?token=` - QPay payment callback. Always `200 SUCCESS`; the
+  payment is only recorded after the app confirms it with QPay. Forged tokens are ignored.
 
 ## Products / Categories / Orders / Analytics
 - `/api/businesses/{businessId}/products/**`
@@ -60,6 +62,21 @@ Orders carry a snapshot of what was bought: `productName`, `unitPrice`, `quantit
 
 The order-notification webhook sends `{"event": "NEW_ORDER", "orderId", "businessId",
 "product", "quantity", "unitPrice", "totalAmount", "customerName", "phone", "address", "status"}`.
+
+## Payments (QPay)
+All under `/api/businesses/{businessId}`, API key required.
+- `PUT /payments/qpay` `{"username", "password", "invoiceCode"}` - Connect or replace the shop's
+  QPay merchant account. `400` if QPay rejects the credentials. `GET /api/businesses/{id}`
+  shows `qpayConnected`; the password is never returned.
+- `DELETE /payments/qpay` - Disconnect. New orders stop getting invoices; already-sent ones can
+  still be paid and are still recorded.
+- `POST /orders/{orderId}/payment/check` - Ask QPay now; returns the updated order.
+
+Orders include `paymentStatus` (`NOT_REQUESTED`, `PENDING` = invoice sent and unpaid, `PAID`),
+`paymentUrl` and `paidAt`; the CSV export adds `paymentStatus` and `paidAt` columns.
+`PUT /orders/{id}/status` with `CANCELLED` withdraws an unpaid invoice. The notification webhook
+receives `{"event": "PAYMENT_RECEIVED", "businessId", "orderId", "amount", "provider": "QPAY",
+"paymentId"}` when an order is paid.
 
 ## Conversations
 - `GET /api/conversations?businessId=` - List conversations

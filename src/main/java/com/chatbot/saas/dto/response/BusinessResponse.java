@@ -17,6 +17,8 @@ public class BusinessResponse {
     private Business.Status status;
     /** True once the owner completed the Meta connect flow and a Page token is stored. */
     private boolean metaConnected;
+    /** True once the shop connected its QPay merchant account; chat orders then get a payment link. */
+    private boolean qpayConnected;
     private LocalDateTime createdAt;
 
     public static BusinessResponse from(Business business) {
@@ -28,6 +30,7 @@ public class BusinessResponse {
                 .facebookPageId(business.getFacebookPageId())
                 .status(business.getStatus())
                 .metaConnected(business.getAccessToken() != null)
+                .qpayConnected(business.isQpayConnected())
                 .createdAt(business.getCreatedAt())
                 .build();
     }

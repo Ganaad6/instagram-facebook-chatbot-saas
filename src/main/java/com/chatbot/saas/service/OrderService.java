@@ -30,6 +30,7 @@ import java.util.stream.Collectors;
 public class OrderService {
 
     private final OrderRepository orderRepository;
+    private final PaymentService paymentService;
 
     @Transactional
     public Order createOrder(Business business, Customer customer, Product product, int quantity,
@@ -77,7 +78,11 @@ public class OrderService {
     public OrderResponse updateOrderStatus(Long businessId, Long orderId, String statusStr) {
         Order order = orderRepository.findByIdAndBusinessId(orderId, businessId)
                 .orElseThrow(() -> new OrderNotFoundException(orderId));
-        order.setStatus(Order.Status.valueOf(statusStr.toUpperCase()));
+        Order.Status newStatus = Order.Status.valueOf(statusStr.toUpperCase());
+        if (newStatus == Order.Status.CANCELLED) {
+            paymentService.cancelPendingInvoice(order);
+        }
+        order.setStatus(newStatus);
         return OrderResponse.from(orderRepository.save(order));
     }
 

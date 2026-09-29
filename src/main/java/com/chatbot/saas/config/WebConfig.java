@@ -3,11 +3,13 @@ package com.chatbot.saas.config;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.scheduling.annotation.EnableAsync;
+import org.springframework.scheduling.annotation.EnableScheduling;
 import org.springframework.web.servlet.config.annotation.CorsRegistry;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 
 @Configuration
 @EnableAsync
+@EnableScheduling
 public class WebConfig implements WebMvcConfigurer {
 
     @Value("${cors.allowed-origins:*}")

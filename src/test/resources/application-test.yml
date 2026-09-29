@@ -25,3 +25,9 @@ encryption:
 
 cors:
   allowed-origins: http://localhost:3000
+
+qpay:
+  api-url: https://qpay.invalid/v2
+  callback-base-url: https://shop.example
+  # Tests drive reconciliation directly
+  reconcile-initial-delay-ms: 86400000

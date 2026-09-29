@@ -18,6 +18,15 @@ public class Order {
         PENDING, CONFIRMED, DELIVERED, CANCELLED
     }
 
+    /** Online payment state, independent of the fulfilment status above. */
+    public enum PaymentStatus {
+        /** No online payment requested (shop has no QPay, or the invoice could not be created). */
+        NOT_REQUESTED,
+        /** A QPay invoice was sent to the customer and is not paid yet. */
+        PENDING,
+        PAID
+    }
+
     public enum Platform {
         INSTAGRAM, FACEBOOK
     }
@@ -73,6 +82,24 @@ public class Order {
 
     @Column(columnDefinition = "TEXT")
     private String notes;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "payment_status", nullable = false, length = 20)
+    @Builder.Default
+    private PaymentStatus paymentStatus = PaymentStatus.NOT_REQUESTED;
+
+    @Column(name = "qpay_invoice_id", length = 64)
+    private String qpayInvoiceId;
+
+    /** QPay short link the customer opens to pay (shows the QR and bank app buttons). */
+    @Column(name = "payment_url", columnDefinition = "TEXT")
+    private String paymentUrl;
+
+    @Column(name = "qpay_payment_id", length = 64)
+    private String qpayPaymentId;
+
+    @Column(name = "paid_at")
+    private LocalDateTime paidAt;
 
     @Column(name = "created_at", nullable = false)
     private LocalDateTime createdAt;

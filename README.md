@@ -7,6 +7,7 @@ A multi-tenant Spring Boot SaaS platform for managing Instagram and Facebook cha
 - Meta OAuth 2.0 integration (signed, expiring OAuth `state`; access tokens encrypted at rest)
 - Webhook handling for Instagram/Facebook messages (HMAC-signature verified)
 - Product catalog, orders, and a state-machine chatbot engine
+- QPay payments: each shop connects its own QPay merchant account and chat orders get a payment link
 - Conversation tracking and data collection
 - Admin-only endpoints for onboarding, suspending, and reactivating tenants (manual billing)
 
@@ -137,6 +138,8 @@ Product photos live in the `directus_uploads` volume - back that up too.
 | `OAUTH_STATE_SECRET` | Signs the OAuth `state` parameter - must differ from `ENCRYPTION_SECRET_KEY` |
 | `ADMIN_USERNAME`, `ADMIN_PASSWORD` | Credentials for the `/api/admin/**` operator endpoints |
 | `CORS_ALLOWED_ORIGINS` | Allowed browser origins (never `*` in production) |
+| `QPAY_API_URL` | QPay merchant API (default: sandbox). Production must use `https://merchant.qpay.mn/v2` |
+| `QPAY_RECONCILE_WINDOW_HOURS` | Unpaid invoices younger than this are re-checked with QPay every 5 min in case a callback was missed (default 3) |
 | `SPRING_PROFILES_ACTIVE` | Set to `prod` in production to enable the startup secrets check |
 
 ### CI
@@ -173,6 +176,33 @@ A shop's staff can take a conversation over from the bot, per customer:
 - The bot takes over again when staff call `resume-bot`, when the customer types a menu keyword
   (**цэс**, **menu**, ...), or after `CHATBOT_HANDOFF_TIMEOUT_HOURS` (default 12) without staff
   activity.
+
+### QPay payments
+
+Each shop is paid into **its own** QPay merchant account; the platform holds no QPay account of
+its own and never touches the money.
+
+1. The shop gets a merchant account from QPay (username, password and invoice code).
+2. They (or you, with their API key) connect it: `PUT /api/businesses/{id}/payments/qpay` - the
+   credentials are verified with QPay before being stored; the password is encrypted at rest.
+3. From then on, when the bot places an order it creates a QPay invoice for the order total and
+   ends the confirmation with the QPay link (QR code + a button per bank app). If QPay is down
+   the order is still saved and the customer gets the usual "we'll contact you" message.
+4. QPay calls `${BASE_URL}/webhook/qpay/{orderId}?token=...` when paid. The app never trusts
+   the callback itself - it asks QPay (`payment/check`) and records the payment only if the
+   paid amount covers the order total, then thanks the customer in chat and sends the shop a
+   `PAYMENT_RECEIVED` notification. Missed callbacks are caught by a reconcile every 5 minutes
+   (for `QPAY_RECONCILE_WINDOW_HOURS`), or on demand with `POST .../orders/{id}/payment/check`.
+
+`paymentStatus` (`NOT_REQUESTED`/`PENDING`/`PAID`) is separate from the order's fulfilment
+`status`, which stays the shop's to change. Cancelling an unpaid order withdraws its invoice;
+refunds of paid orders are done by the shop in QPay.
+
+**Testing without a merchant account:** the default `QPAY_API_URL` is QPay's sandbox, which
+accepts the public test merchant `TEST_MERCHANT` / `123456` with invoice code `TEST_INVOICE`.
+Sandbox links can't take real payments. `BASE_URL` must be publicly reachable (e.g. via a
+tunnel) for QPay's callback to arrive; otherwise use the check endpoint. Under the `prod`
+profile startup refuses a sandbox `QPAY_API_URL`.
 
 ## Meta app setup (one time)
 

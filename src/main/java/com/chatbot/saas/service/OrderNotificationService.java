@@ -8,11 +8,12 @@ import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import org.springframework.web.reactive.function.client.WebClient;
 
+import java.math.BigDecimal;
 import java.util.Map;
 
 /**
- * Pushes events to the business's notification webhook URL (if configured): new orders, and
- * customers asking to talk to a person.
+ * Pushes events to the business's notification webhook URL (if configured): new orders, QPay
+ * payments, and customers asking to talk to a person.
  */
 @Service
 @RequiredArgsConstructor
@@ -67,6 +68,27 @@ public class OrderNotificationService {
             post(webhookUrl, payload, "handoff for customer " + customerId);
         } catch (Exception e) {
             log.warn("Could not send handoff notification: {}", e.getMessage());
+        }
+    }
+
+    /** A customer paid an order's QPay invoice. Takes plain values, like notifyHandoffRequested. */
+    @Async
+    public void notifyPaymentReceived(String webhookUrl, Long businessId, Long orderId,
+                                      BigDecimal amount, String paymentId) {
+        if (webhookUrl == null || webhookUrl.isBlank()) {
+            return;
+        }
+        try {
+            Map<String, Object> payload = Map.of(
+                    "event", "PAYMENT_RECEIVED",
+                    "businessId", businessId,
+                    "orderId", orderId,
+                    "amount", amount,
+                    "provider", "QPAY",
+                    "paymentId", paymentId != null ? paymentId : "");
+            post(webhookUrl, payload, "payment of order " + orderId);
+        } catch (Exception e) {
+            log.warn("Could not send payment notification: {}", e.getMessage());
         }
     }
 

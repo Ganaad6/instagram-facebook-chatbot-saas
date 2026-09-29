@@ -16,7 +16,7 @@ import static org.mockito.Mockito.*;
 class OrderServiceTest {
 
     private final OrderRepository orderRepository = mock(OrderRepository.class);
-    private final OrderService orderService = new OrderService(orderRepository);
+    private final OrderService orderService = new OrderService(orderRepository, mock(PaymentService.class));
 
     @Test
     void orderSnapshotsProductNameAndPriceAndComputesTotal() {

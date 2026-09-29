@@ -54,6 +54,17 @@ chatbot:
   # How long the bot stays silent for a customer after they ask for a person or staff reply
   handoff-timeout-hours: ${CHATBOT_HANDOFF_TIMEOUT_HOURS:12}
 
+qpay:
+  # Sandbox by default so development never touches real money; production must use
+  # https://merchant.qpay.mn/v2 (enforced under the prod profile). Merchant credentials are
+  # per shop, set via PUT /api/businesses/{id}/payments/qpay - there are none here.
+  api-url: ${QPAY_API_URL:https://merchant-sandbox.qpay.mn/v2}
+  # Where QPay sends payment callbacks (/webhook/qpay/{orderId}); must be reachable from QPay
+  callback-base-url: ${BASE_URL:http://localhost:8080}
+  # Unpaid invoices younger than this are re-checked with QPay in case a callback was missed
+  reconcile-window-hours: ${QPAY_RECONCILE_WINDOW_HOURS:3}
+  reconcile-interval-ms: ${QPAY_RECONCILE_INTERVAL_MS:300000}
+
 directus:
   public-url: ${DIRECTUS_PUBLIC_URL:}
 

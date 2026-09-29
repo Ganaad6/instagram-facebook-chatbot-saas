@@ -3,7 +3,9 @@ package com.chatbot.saas.repository;
 import com.chatbot.saas.entity.Order;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import jakarta.persistence.LockModeType;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
@@ -20,6 +22,16 @@ public interface OrderRepository extends JpaRepository<Order, Long> {
     Page<Order> findAllByBusinessIdAndStatus(Long businessId, Order.Status status, Pageable pageable);
 
     Optional<Order> findByIdAndBusinessId(Long id, Long businessId);
+
+    /** Locks the order row so a QPay callback and a reconcile can't both record the payment. */
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("SELECT o FROM CustomerOrder o WHERE o.id = :id")
+    Optional<Order> findByIdForUpdate(@Param("id") Long id);
+
+    @Query("SELECT o.id FROM CustomerOrder o WHERE o.paymentStatus = :status AND o.createdAt > :since ORDER BY o.id")
+    List<Long> findIdsByPaymentStatusCreatedAfter(@Param("status") Order.PaymentStatus status,
+                                                  @Param("since") LocalDateTime since,
+                                                  Pageable pageable);
 
     List<Order> findAllByBusinessIdAndCreatedAtBetween(Long businessId, LocalDateTime from, LocalDateTime to);
 

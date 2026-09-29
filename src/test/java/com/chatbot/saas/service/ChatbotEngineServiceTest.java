@@ -35,6 +35,8 @@ class ChatbotEngineServiceTest {
     private OAuthService oAuthService;
     @Mock
     private MessageLogService messageLogService;
+    @Mock
+    private PaymentService paymentService;
 
     private ChatbotEngineService chatbotEngineService;
 
@@ -44,7 +46,7 @@ class ChatbotEngineServiceTest {
     void setUp() {
         chatbotEngineService = new ChatbotEngineService(
                 conversationRepository, categoryService, productService,
-                orderService, orderNotificationService, metaReplyService, oAuthService, messageLogService);
+                orderService, orderNotificationService, metaReplyService, oAuthService, messageLogService, paymentService);
         setDirectusPublicUrl(chatbotEngineService, DIRECTUS_PUBLIC_URL);
     }
 

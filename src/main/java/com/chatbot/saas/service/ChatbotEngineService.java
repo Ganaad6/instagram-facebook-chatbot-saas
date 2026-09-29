@@ -28,6 +28,8 @@ import java.util.stream.IntStream;
  *   AWAITING_CONFIRMATION → AWAITING_CATEGORY (user says no)
  *   any state → AWAITING_CATEGORY on a restart keyword (e.g. "цэс" / "menu")
  *
+ * If the shop connected QPay, the order confirmation carries a QPay payment link.
+ *
  * Platform-aware: Facebook gets quick-reply buttons; Instagram gets numbered text lists.
  * Every reply the customer receives is recorded in the conversation transcript.
  */
@@ -49,6 +51,7 @@ public class ChatbotEngineService {
     private final MetaReplyService metaReplyService;
     private final OAuthService oAuthService;
     private final MessageLogService messageLogService;
+    private final PaymentService paymentService;
 
     @Value("${directus.public-url:}")
     private String directusPublicUrl;
@@ -220,18 +223,23 @@ public class ChatbotEngineService {
         conversation.setCompletedAt(LocalDateTime.now());
         saveState(conversation, Conversation.State.ORDER_SAVED);
 
+        String paymentUrl = paymentService.requestPayment(order);
+        String closing = paymentUrl != null
+                ? "💳 Төлбөрөө QPay-ээр доорх холбоосоор төлнө үү:\n" + paymentUrl
+                : "Бид тантай удахгүй холбогдоно. Баярлалаа! 🙏";
         reply(chat, String.format(
                 "✅ Таны захиалга амжилттай бүртгэгдлээ!\n" +
                 "📦 Бүтээгдэхүүн: %s × %d\n" +
                 "💰 Нийт үнэ: %s\n" +
                 "📞 Утас: %s\n" +
                 "📍 Хаяг: %s\n" +
-                "Бид тантай удахгүй холбогдоно. Баярлалаа! 🙏",
+                "%s",
                 order.getProductName(),
                 order.getQuantity(),
                 formatPrice(order.getTotalAmount()),
                 conversation.getCollectedPhone(),
-                conversation.getCollectedAddress()
+                conversation.getCollectedAddress(),
+                closing
         ));
 
         // Async notification to business
@@ -312,7 +320,7 @@ public class ChatbotEngineService {
         messageLogService.recordOutbound(chat.conversation(), messageId, MetaReplyService.renderMenuText(introText, items));
     }
 
-    private static String formatPrice(BigDecimal amount) {
+    static String formatPrice(BigDecimal amount) {
         return String.format("₮%,.0f", amount.doubleValue());
     }
 

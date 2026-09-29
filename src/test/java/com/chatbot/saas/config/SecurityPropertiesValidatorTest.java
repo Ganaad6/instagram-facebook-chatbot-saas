@@ -22,6 +22,7 @@ class SecurityPropertiesValidatorTest {
         ReflectionTestUtils.setField(validator, "metaAppId", "123");
         ReflectionTestUtils.setField(validator, "metaAppSecret", "secret");
         ReflectionTestUtils.setField(validator, "oauthRedirectUri", "https://api.example/api/auth/meta/callback");
+        ReflectionTestUtils.setField(validator, "qpayApiUrl", "https://merchant.qpay.mn/v2");
     }
 
     @Test
@@ -51,5 +52,13 @@ class SecurityPropertiesValidatorTest {
 
         IllegalStateException e = assertThrows(IllegalStateException.class, validator::validate);
         assertTrue(e.getMessage().contains("BASE_URL"));
+    }
+
+    @Test
+    void qpaySandboxIsRejected() {
+        ReflectionTestUtils.setField(validator, "qpayApiUrl", "https://merchant-sandbox.qpay.mn/v2");
+
+        IllegalStateException e = assertThrows(IllegalStateException.class, validator::validate);
+        assertTrue(e.getMessage().contains("QPAY_API_URL"));
     }
 }

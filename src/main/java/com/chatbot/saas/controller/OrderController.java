@@ -68,9 +68,9 @@ public class OrderController {
 
         StringWriter sw = new StringWriter();
         PrintWriter pw = new PrintWriter(sw);
-        pw.println("id,product,quantity,unitPrice,totalAmount,customerName,phone,address,status,platform,createdAt");
+        pw.println("id,product,quantity,unitPrice,totalAmount,customerName,phone,address,status,platform,createdAt,paymentStatus,paidAt");
         for (Order o : orders) {
-            pw.printf("%d,\"%s\",%d,%s,%s,\"%s\",\"%s\",\"%s\",%s,%s,%s%n",
+            pw.printf("%d,\"%s\",%d,%s,%s,\"%s\",\"%s\",\"%s\",%s,%s,%s,%s,%s%n",
                     o.getId(),
                     escape(o.getProductName()),
                     o.getQuantity(),
@@ -81,7 +81,9 @@ public class OrderController {
                     escape(o.getAddress()),
                     o.getStatus().name(),
                     o.getPlatform().name(),
-                    o.getCreatedAt().toString());
+                    o.getCreatedAt().toString(),
+                    o.getPaymentStatus().name(),
+                    o.getPaidAt() != null ? o.getPaidAt().toString() : "");
         }
 
         return ResponseEntity.ok()

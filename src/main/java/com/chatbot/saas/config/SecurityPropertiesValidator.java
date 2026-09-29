@@ -50,6 +50,9 @@ public class SecurityPropertiesValidator {
     @Value("${meta.oauth.redirect-uri:}")
     private String oauthRedirectUri;
 
+    @Value("${qpay.api-url:}")
+    private String qpayApiUrl;
+
     @PostConstruct
     public void validate() {
         List<String> problems = new ArrayList<>();
@@ -78,6 +81,11 @@ public class SecurityPropertiesValidator {
         }
         if (!oauthRedirectUri.startsWith("https://")) {
             problems.add("BASE_URL must be an https:// URL (Meta requires HTTPS redirect URIs)");
+        }
+
+        if (!qpayApiUrl.startsWith("https://") || qpayApiUrl.contains("sandbox")) {
+            // Customers would be sent sandbox invoices that can't take real payments
+            problems.add("QPAY_API_URL must be the production QPay API (https://merchant.qpay.mn/v2)");
         }
 
         if (!problems.isEmpty()) {

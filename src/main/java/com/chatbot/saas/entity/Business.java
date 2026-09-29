@@ -51,6 +51,17 @@ public class Business {
     @Column(name = "notification_webhook_url", columnDefinition = "TEXT")
     private String notificationWebhookUrl;
 
+    /** QPay merchant login; payments are made to the shop's own QPay account. */
+    @Column(name = "qpay_username")
+    private String qpayUsername;
+
+    /** QPay merchant password, AES-GCM encrypted. */
+    @Column(name = "qpay_password", columnDefinition = "TEXT")
+    private String qpayPassword;
+
+    @Column(name = "qpay_invoice_code")
+    private String qpayInvoiceCode;
+
     @Column(name = "created_at", nullable = false)
     private LocalDateTime createdAt;
 
@@ -61,6 +72,10 @@ public class Business {
     @Column(nullable = false)
     @Builder.Default
     private Status status = Status.ACTIVE;
+
+    public boolean isQpayConnected() {
+        return qpayUsername != null && qpayPassword != null && qpayInvoiceCode != null;
+    }
 
     @PrePersist
     protected void onCreate() {

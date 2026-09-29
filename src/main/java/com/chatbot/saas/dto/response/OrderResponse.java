@@ -26,6 +26,11 @@ public class OrderResponse {
     private String status;
     private String platform;
     private String notes;
+    /** NOT_REQUESTED, PENDING (QPay invoice sent, unpaid) or PAID. */
+    private String paymentStatus;
+    /** QPay link the customer was sent to pay, while an invoice exists. */
+    private String paymentUrl;
+    private LocalDateTime paidAt;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
 
@@ -46,6 +51,9 @@ public class OrderResponse {
                 .status(order.getStatus().name())
                 .platform(order.getPlatform().name())
                 .notes(order.getNotes())
+                .paymentStatus(order.getPaymentStatus().name())
+                .paymentUrl(order.getPaymentUrl())
+                .paidAt(order.getPaidAt())
                 .createdAt(order.getCreatedAt())
                 .updatedAt(order.getUpdatedAt())
                 .build();

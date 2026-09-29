@@ -53,6 +53,7 @@ services:
       SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-}
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
       DIRECTUS_PUBLIC_URL: ${DIRECTUS_PUBLIC_URL:-http://localhost:8055}
+      QPAY_API_URL: ${QPAY_API_URL:-https://merchant-sandbox.qpay.mn/v2}
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://localhost:8080/actuator/health | grep -q UP"]
       interval: 10s
