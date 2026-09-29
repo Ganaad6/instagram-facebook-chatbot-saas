@@ -89,8 +89,11 @@ public class PaymentService {
 
     // ─── Shop setup ──────────────────────────────────────────────────────────
 
-    /** Stores the shop's QPay merchant credentials after checking QPay accepts them. */
-    @Transactional
+    /**
+     * Stores the shop's QPay merchant credentials after checking QPay accepts them. Switching
+     * to a different merchant account first withdraws the unpaid invoices of the old one,
+     * which couldn't be checked with the new account's login any more.
+     */
     public void connectQPay(Business business, String username, String password, String invoiceCode) {
         try {
             qpayClient.verifyCredentials(username, password);
@@ -99,21 +102,51 @@ public class PaymentService {
                     ? "QPay rejected this username or password"
                     : "Could not verify the credentials with QPay: " + e.getMessage());
         }
-        business.setQpayUsername(username);
-        business.setQpayPassword(encryptionUtil.encrypt(password));
-        business.setQpayInvoiceCode(invoiceCode);
-        businessRepository.save(business);
+        if (business.isQpayConnected() && !business.getQpayUsername().equals(username)) {
+            withdrawPendingInvoices(business.getId());
+        }
+        transactionTemplate.executeWithoutResult(status -> {
+            Business current = businessRepository.findById(business.getId()).orElseThrow();
+            current.setQpayUsername(username);
+            current.setQpayPassword(encryptionUtil.encrypt(password));
+            current.setQpayInvoiceCode(invoiceCode);
+            businessRepository.save(current);
+        });
         log.info("Business {} connected QPay merchant {}", business.getId(), username);
     }
 
-    /** New orders stop getting invoices; already-sent invoices can still be paid and checked. */
-    @Transactional
+    /**
+     * Unpaid invoices are withdrawn first: once the credentials are gone their payments could
+     * no longer be confirmed. Refused if QPay can't be reached to do that.
+     */
     public void disconnectQPay(Business business) {
-        business.setQpayUsername(null);
-        business.setQpayPassword(null);
-        business.setQpayInvoiceCode(null);
-        businessRepository.save(business);
+        withdrawPendingInvoices(business.getId());
+        transactionTemplate.executeWithoutResult(status -> {
+            Business current = businessRepository.findById(business.getId()).orElseThrow();
+            current.setQpayUsername(null);
+            current.setQpayPassword(null);
+            current.setQpayInvoiceCode(null);
+            businessRepository.save(current);
+        });
         log.info("Business {} disconnected QPay", business.getId());
+    }
+
+    /** Each order in its own transaction, so ones already withdrawn at QPay stay recorded as such. */
+    private void withdrawPendingInvoices(Long businessId) {
+        int stuck = 0;
+        for (Long orderId : orderRepository.findIdsByBusinessIdAndPaymentStatus(businessId, Order.PaymentStatus.PENDING)) {
+            Boolean withdrawn = transactionTemplate.execute(status -> {
+                Order order = orderRepository.findByIdForUpdate(orderId).orElseThrow();
+                cancelPendingInvoice(order);
+                return order.getPaymentStatus() != Order.PaymentStatus.PENDING;
+            });
+            if (!Boolean.TRUE.equals(withdrawn)) {
+                stuck++;
+            }
+        }
+        if (stuck > 0) {
+            throw new ValidationException(stuck + " төлөгдөөгүй QPay нэхэмжлэхийг цуцалж чадсангүй. Түр хүлээгээд дахин оролдоно уу");
+        }
     }
 
     // ─── Invoices ────────────────────────────────────────────────────────────
@@ -149,7 +182,9 @@ public class PaymentService {
     /**
      * The shop is cancelling an order: withdraw its unpaid invoice so the customer can't pay
      * it any more. If it turns out to be paid already, the payment is recorded instead (the
-     * shop then owes a refund). Runs within the caller's transaction.
+     * shop then owes a refund). The caller must hold the order's row lock
+     * (OrderRepository.findByIdForUpdate), so a concurrent QPay callback can't record the
+     * same payment too.
      */
     public void cancelPendingInvoice(Order order) {
         if (order.getPaymentStatus() != Order.PaymentStatus.PENDING || order.getQpayInvoiceId() == null) {
@@ -235,6 +270,7 @@ public class PaymentService {
         }
         PaymentCheck check = qpayClient.checkPayment(pending.credentials(), pending.invoiceId());
         if (!check.covers(pending.amount())) {
+            transactionTemplate.executeWithoutResult(status -> orderRepository.markPaymentChecked(orderId, LocalDateTime.now()));
             return;
         }
         transactionTemplate.executeWithoutResult(status -> {

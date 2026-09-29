@@ -306,6 +306,61 @@ class PaymentIntegrationTest {
         assertFalse(objectMapper.readTree(json).get("qpayConnected").asBoolean());
     }
 
+    @Test
+    void disconnectingWithdrawsUnpaidInvoicesFirst() throws Exception {
+        connectQPay();
+        Order order = placeOrder();
+
+        mockMvc.perform(delete("/api/businesses/" + businessId + "/payments/qpay").header("X-API-Key", apiKey))
+                .andExpect(status().isOk());
+
+        verify(qpayClient).cancelInvoice(eq(new Credentials("SHOP_MERCHANT", "qpay-secret", "SHOP_INVOICE")), eq("inv-" + pageId));
+        assertEquals(Order.PaymentStatus.NOT_REQUESTED, reload(order).getPaymentStatus());
+        assertFalse(businessRepository.findById(businessId).orElseThrow().isQpayConnected());
+    }
+
+    @Test
+    void disconnectIsRefusedWhileAnInvoiceCantBeWithdrawn() throws Exception {
+        connectQPay();
+        Order order = placeOrder();
+        doThrow(new QPayException("Could not reach QPay")).when(qpayClient).cancelInvoice(any(), anyString());
+
+        mockMvc.perform(delete("/api/businesses/" + businessId + "/payments/qpay").header("X-API-Key", apiKey))
+                .andExpect(status().isBadRequest());
+
+        assertTrue(businessRepository.findById(businessId).orElseThrow().isQpayConnected(), "credentials kept to confirm it later");
+        assertEquals(Order.PaymentStatus.PENDING, reload(order).getPaymentStatus());
+    }
+
+    @Test
+    void switchingMerchantWithdrawsTheOldAccountsInvoices() throws Exception {
+        connectQPay();
+        Order order = placeOrder();
+
+        mockMvc.perform(put("/api/businesses/" + businessId + "/payments/qpay")
+                        .header("X-API-Key", apiKey).contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of(
+                                "username", "NEW_MERCHANT", "password", "new-secret", "invoiceCode", "NEW_INVOICE"))))
+                .andExpect(status().isOk());
+
+        verify(qpayClient).cancelInvoice(eq(new Credentials("SHOP_MERCHANT", "qpay-secret", "SHOP_INVOICE")), anyString());
+        assertEquals(Order.PaymentStatus.NOT_REQUESTED, reload(order).getPaymentStatus());
+        assertEquals("NEW_MERCHANT", businessRepository.findById(businessId).orElseThrow().getQpayUsername());
+    }
+
+    @Test
+    void reconcileRecordsWhenEachUnpaidInvoiceWasChecked() throws Exception {
+        connectQPay();
+        Order order = placeOrder();
+        assertNull(order.getPaymentCheckedAt());
+
+        paymentService.reconcilePendingPayments();
+
+        Order checked = reload(order);
+        assertEquals(Order.PaymentStatus.PENDING, checked.getPaymentStatus());
+        assertNotNull(checked.getPaymentCheckedAt(), "so the next run starts with invoices not checked yet");
+    }
+
     private void awaitIdle() throws InterruptedException {
         ThreadPoolExecutor pool = taskExecutor.getThreadPoolExecutor();
         long deadline = System.currentTimeMillis() + 15_000;

@@ -76,7 +76,10 @@ public class OrderService {
 
     @Transactional
     public OrderResponse updateOrderStatus(Long businessId, Long orderId, String statusStr) {
-        Order order = orderRepository.findByIdAndBusinessId(orderId, businessId)
+        // Locked: a QPay callback recording the payment at the same time must not be
+        // overwritten by this update's stale copy of the payment fields
+        Order order = orderRepository.findByIdForUpdate(orderId)
+                .filter(o -> o.getBusiness().getId().equals(businessId))
                 .orElseThrow(() -> new OrderNotFoundException(orderId));
         Order.Status newStatus = Order.Status.valueOf(statusStr.toUpperCase());
         if (newStatus == Order.Status.CANCELLED) {

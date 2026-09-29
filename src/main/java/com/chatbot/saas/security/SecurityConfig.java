@@ -25,6 +25,8 @@ import org.springframework.security.web.csrf.CookieCsrfTokenRepository;
 import org.springframework.security.web.header.writers.ReferrerPolicyHeaderWriter;
 import org.springframework.security.web.header.writers.StaticHeadersWriter;
 
+import org.springframework.util.StringUtils;
+
 import java.util.Arrays;
 import java.util.Map;
 import java.util.Set;
@@ -137,7 +139,8 @@ public class SecurityConfig {
             return false;
         }
         String path = request.getRequestURI();
-        if (request.getHeader(ApiKeyAuthenticationFilter.API_KEY_HEADER) != null
+        // Only a real key exempts: a blank header falls through to the session cookie
+        if (StringUtils.hasText(request.getHeader(ApiKeyAuthenticationFilter.API_KEY_HEADER))
                 || path.startsWith("/webhook") || path.startsWith("/api/admin/")
                 || path.equals("/api/businesses/register")) {
             return false;

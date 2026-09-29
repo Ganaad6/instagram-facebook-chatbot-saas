@@ -3,7 +3,9 @@ package com.chatbot.saas.service;
 import com.chatbot.saas.entity.Business;
 import com.chatbot.saas.entity.Order;
 import lombok.extern.slf4j.Slf4j;
+import com.chatbot.saas.util.PublicAddressGuard;
 import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import org.springframework.web.reactive.function.client.WebClient;
@@ -22,8 +24,12 @@ public class OrderNotificationService {
     /** Only reaches public addresses; see NotificationClientConfig. */
     private final WebClient notificationWebClient;
 
-    public OrderNotificationService(@Qualifier("notificationWebClient") WebClient notificationWebClient) {
+    private final boolean allowHttp;
+
+    public OrderNotificationService(@Qualifier("notificationWebClient") WebClient notificationWebClient,
+                                    @Value("${notifications.allow-http:false}") boolean allowHttp) {
         this.notificationWebClient = notificationWebClient;
+        this.allowHttp = allowHttp;
     }
 
     @Async
@@ -97,6 +103,13 @@ public class OrderNotificationService {
     }
 
     private void post(String url, Map<String, Object> payload, String what) {
+        // Re-checked at send time: the resolver guard doesn't see IP-literal hosts, and URLs
+        // saved before validation existed were never checked
+        String problem = PublicAddressGuard.problemWith(url, allowHttp);
+        if (problem != null) {
+            log.warn("Not sending notification for {}: webhook URL refused ({})", what, problem);
+            return;
+        }
         notificationWebClient
                 .post()
                 .uri(url)

@@ -42,10 +42,20 @@ public interface OrderRepository extends JpaRepository<Order, Long> {
     @Query("SELECT o FROM CustomerOrder o WHERE o.id = :id")
     Optional<Order> findByIdForUpdate(@Param("id") Long id);
 
-    @Query("SELECT o.id FROM CustomerOrder o WHERE o.paymentStatus = :status AND o.createdAt > :since ORDER BY o.id")
+    /** Least recently checked first, so every invoice in the window gets its turn. */
+    @Query("SELECT o.id FROM CustomerOrder o WHERE o.paymentStatus = :status AND o.createdAt > :since "
+            + "ORDER BY o.paymentCheckedAt ASC NULLS FIRST, o.id ASC")
     List<Long> findIdsByPaymentStatusCreatedAfter(@Param("status") Order.PaymentStatus status,
                                                   @Param("since") LocalDateTime since,
                                                   Pageable pageable);
+
+    @Query("SELECT o.id FROM CustomerOrder o WHERE o.business.id = :businessId AND o.paymentStatus = :status")
+    List<Long> findIdsByBusinessIdAndPaymentStatus(@Param("businessId") Long businessId,
+                                                   @Param("status") Order.PaymentStatus status);
+
+    @org.springframework.data.jpa.repository.Modifying
+    @Query("UPDATE CustomerOrder o SET o.paymentCheckedAt = :at WHERE o.id = :id")
+    void markPaymentChecked(@Param("id") Long id, @Param("at") LocalDateTime at);
 
     List<Order> findAllByBusinessIdAndCreatedAtBetween(Long businessId, LocalDateTime from, LocalDateTime to);
 

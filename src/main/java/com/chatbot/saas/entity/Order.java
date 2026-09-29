@@ -101,6 +101,10 @@ public class Order {
     @Column(name = "paid_at")
     private LocalDateTime paidAt;
 
+    /** When QPay was last asked about this order's unpaid invoice. */
+    @Column(name = "payment_checked_at")
+    private LocalDateTime paymentCheckedAt;
+
     @Column(name = "created_at", nullable = false)
     private LocalDateTime createdAt;
 

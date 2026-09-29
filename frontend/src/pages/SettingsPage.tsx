@@ -105,7 +105,7 @@ function Connections() {
   };
 
   const disconnectQpay = async () => {
-    if (!window.confirm('QPay-г салгах уу? Шинэ захиалгад төлбөрийн холбоос илгээгдэхгүй.')) return;
+    if (!window.confirm('QPay-г салгах уу? Төлөгдөөгүй нэхэмжлэхүүд хүчингүй болж, шинэ захиалгад төлбөрийн холбоос илгээгдэхгүй.')) return;
     if (await run(() => api.delete(`/api/businesses/${business.id}/payments/qpay`), 'QPay салгагдлаа')) await refresh();
   };
 
@@ -147,7 +147,8 @@ function Connections() {
             <Field label="Нэвтрэх нэр (username)"><input required autoComplete="off" value={qpay.username} onChange={(e) => setQpay({ ...qpay, username: e.target.value })} /></Field>
             <Field label="Нууц үг"><input required type="password" autoComplete="new-password" value={qpay.password} onChange={(e) => setQpay({ ...qpay, password: e.target.value })} /></Field>
             <Field label="Нэхэмжлэхийн код (invoice code)"><input required autoComplete="off" value={qpay.invoiceCode} onChange={(e) => setQpay({ ...qpay, invoiceCode: e.target.value })} /></Field>
-            <p className="field-hint">QPay-тэй мерчант гэрээ байгуулахад эдгээр мэдээллийг өгнө. Хадгалахаас өмнө QPay-ээр шалгана.</p>
+            <p className="field-hint">QPay-тэй мерчант гэрээ байгуулахад эдгээр мэдээллийг өгнө. Хадгалахаас өмнө QPay-ээр шалгана.
+              {editingQpay && ' Өөр мерчант данс руу шилжвэл хуучин дансны төлөгдөөгүй нэхэмжлэхүүд хүчингүй болно.'}</p>
             <div className="row">
               <button className="btn btn-primary" disabled={busy}>{busy ? 'Шалгаж байна…' : 'Холбох'}</button>
               {editingQpay && <button type="button" className="btn" onClick={() => setEditingQpay(false)}>Болих</button>}

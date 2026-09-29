@@ -155,6 +155,12 @@ class DashboardAuthIntegrationTest {
         // Reads are fine
         assertEquals(200, shop.owner().status(HttpMethod.GET, "/api/businesses/" + shop.businessId() + "/categories", null));
 
+        // A blank API key header falls through to the cookie, so it doesn't skip CSRF either
+        MockHttpServletRequestBuilder blankKey = MockMvcRequestBuilders.post("/api/businesses/" + shop.businessId() + "/categories")
+                .header("X-API-Key", "").contentType(MediaType.APPLICATION_JSON).content("{\"name\":\"X\"}")
+                .cookie(shop.owner().cookies.entrySet().stream().map(e -> new Cookie(e.getKey(), e.getValue())).toArray(Cookie[]::new));
+        assertEquals(403, mockMvc.perform(blankKey).andReturn().getResponse().getStatus());
+
         // A foreign site can't sign a visitor in either
         Browser visitor = new Browser();
         visitor.sendCsrfHeader = false;
