@@ -113,6 +113,9 @@ public class OrderService {
                 .pendingOrders(pending)
                 .todayOrders(today)
                 .totalRevenue(orderRepository.sumRevenueByBusinessId(businessId))
+                .paidRevenue(orderRepository.sumPaidByBusinessId(businessId))
+                .awaitingPaymentOrders(orderRepository.countByBusinessIdAndPaymentStatusAndStatusNot(
+                        businessId, Order.PaymentStatus.PENDING, Order.Status.CANCELLED))
                 .topProducts(topProducts)
                 .build();
     }

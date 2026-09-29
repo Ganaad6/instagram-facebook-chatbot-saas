@@ -14,6 +14,10 @@ public class AnalyticsSummaryResponse {
     private long todayOrders;
     /** Sum of totalAmount over all non-cancelled orders. */
     private BigDecimal totalRevenue;
+    /** Sum of orders paid through QPay. */
+    private BigDecimal paidRevenue;
+    /** Open orders whose QPay invoice hasn't been paid yet. */
+    private long awaitingPaymentOrders;
     private List<TopProductResponse> topProducts;
 
     @Data

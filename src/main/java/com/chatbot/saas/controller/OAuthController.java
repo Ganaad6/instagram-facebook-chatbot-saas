@@ -8,10 +8,11 @@ import com.chatbot.saas.service.OAuthService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
-import org.springframework.http.MediaType;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
-import org.springframework.web.util.HtmlUtils;
+import org.springframework.util.StringUtils;
+import org.springframework.web.util.UriComponentsBuilder;
 
 import java.util.Map;
 
@@ -23,6 +24,9 @@ public class OAuthController {
 
     private final OAuthService oAuthService;
     private final TenantContext tenantContext;
+
+    @Value("${app.base-url}")
+    private String baseUrl;
 
     /**
      * Returns the Meta connect link as JSON rather than redirecting: a browser can't attach the
@@ -39,40 +43,34 @@ public class OAuthController {
     /**
      * Public callback - Meta redirects the business owner's browser here with no way to attach
      * an API key. Trust is instead derived from the signed, expiring `state` (see
-     * OAuthStateService), not from a client-suppliable businessId. Responds with a small HTML
-     * page since a person is looking at it.
+     * OAuthStateService), not from a client-suppliable businessId. Sends the person back to the
+     * dashboard's settings page with the outcome.
      */
-    @GetMapping(value = "/callback", produces = MediaType.TEXT_HTML_VALUE)
-    public ResponseEntity<String> callback(@RequestParam(required = false) String code,
-                                           @RequestParam(required = false) String state,
-                                           @RequestParam(name = "error_description", required = false) String errorDescription) {
+    @GetMapping("/callback")
+    public ResponseEntity<Void> callback(@RequestParam(required = false) String code,
+                                         @RequestParam(required = false) String state,
+                                         @RequestParam(name = "error_description", required = false) String errorDescription) {
         if (code == null || state == null) {
-            String reason = errorDescription != null ? errorDescription : "The connection was cancelled.";
-            return page(HttpStatus.BAD_REQUEST, "Connection not completed", reason + " Please try the link again.");
+            return backToDashboard("failed", errorDescription != null ? errorDescription : "Холболтыг цуцалсан байна.");
         }
         try {
             Business business = oAuthService.handleCallback(code, state);
-            String connected = business.getInstagramAccountId() != null
-                    ? "Your Facebook Page and Instagram account are connected."
-                    : "Your Facebook Page is connected. No Instagram professional account is linked to it, "
-                    + "so only Messenger will be answered.";
-            return page(HttpStatus.OK, "Connected", connected + " You can close this window.");
+            return backToDashboard(business.getInstagramAccountId() != null ? "connected" : "connected-page-only", null);
         } catch (IllegalArgumentException e) {
-            return page(HttpStatus.BAD_REQUEST, "Link expired or invalid",
-                    "This connect link is no longer valid. Please request a new one.");
+            return backToDashboard("failed", "Холбох холбоосын хугацаа дууссан байна. Дахин оролдоно уу.");
         } catch (MetaConnectException | BusinessNotFoundException e) {
             log.warn("Meta connect failed: {}", e.getMessage());
-            return page(HttpStatus.BAD_REQUEST, "Connection failed", e.getMessage());
+            return backToDashboard("failed", e.getMessage());
         }
     }
 
-    private ResponseEntity<String> page(HttpStatus status, String title, String message) {
-        String html = "<!doctype html><html><head><meta charset=\"utf-8\">"
-                + "<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">"
-                + "<title>" + HtmlUtils.htmlEscape(title) + "</title></head>"
-                + "<body style=\"font-family:sans-serif;max-width:32rem;margin:4rem auto;padding:0 1rem\">"
-                + "<h1>" + HtmlUtils.htmlEscape(title) + "</h1>"
-                + "<p>" + HtmlUtils.htmlEscape(message) + "</p></body></html>";
-        return ResponseEntity.status(status).contentType(MediaType.TEXT_HTML).body(html);
+    private ResponseEntity<Void> backToDashboard(String outcome, String message) {
+        UriComponentsBuilder uri = UriComponentsBuilder.fromUriString(StringUtils.trimTrailingCharacter(baseUrl, '/'))
+                .path("/settings")
+                .queryParam("meta", outcome);
+        if (message != null) {
+            uri.queryParam("message", message);
+        }
+        return ResponseEntity.status(HttpStatus.FOUND).location(uri.encode().build().toUri()).build();
     }
 }

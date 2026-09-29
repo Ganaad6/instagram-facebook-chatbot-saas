@@ -23,6 +23,20 @@ public interface OrderRepository extends JpaRepository<Order, Long> {
 
     Optional<Order> findByIdAndBusinessId(Long id, Long businessId);
 
+    Optional<Order> findFirstByCustomerIdAndCustomerNameIsNotNullOrderByIdDesc(Long customerId);
+
+    long countByBusinessIdAndPaymentStatusAndStatusNot(Long businessId, Order.PaymentStatus paymentStatus, Order.Status status);
+
+    @Query("SELECT COALESCE(SUM(o.totalAmount), 0) FROM CustomerOrder o "
+            + "WHERE o.business.id = :businessId AND o.paymentStatus = :paymentStatus")
+    java.math.BigDecimal sumTotalAmountByPaymentStatus(@Param("businessId") Long businessId,
+                                                       @Param("paymentStatus") Order.PaymentStatus paymentStatus);
+
+    /** Total value of orders paid through QPay. */
+    default java.math.BigDecimal sumPaidByBusinessId(Long businessId) {
+        return sumTotalAmountByPaymentStatus(businessId, Order.PaymentStatus.PAID);
+    }
+
     /** Locks the order row so a QPay callback and a reconcile can't both record the payment. */
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("SELECT o FROM CustomerOrder o WHERE o.id = :id")

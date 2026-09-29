@@ -219,7 +219,9 @@ class HandoffIntegrationTest {
         ThreadPoolExecutor pool = taskExecutor.getThreadPoolExecutor();
         long deadline = System.currentTimeMillis() + 15_000;
         while (System.currentTimeMillis() < deadline) {
-            if (pool.getActiveCount() == 0 && pool.getQueue().isEmpty()) {
+            // Every submitted task finished - active/queue counts alone briefly read 0 while a
+            // task moves from the queue to a worker
+            if (pool.getCompletedTaskCount() == pool.getTaskCount()) {
                 return;
             }
             Thread.sleep(20);

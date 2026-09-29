@@ -95,6 +95,8 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.GET, "/media/*").permitAll()
                         .requestMatchers("/api/admin/**").hasRole("ADMIN")
                         .requestMatchers("/api/**").hasRole("BUSINESS")
+                        // The dashboard's pages and static files; its data comes from /api/**
+                        .requestMatchers(HttpMethod.GET, "/**").permitAll()
                         .anyRequest().denyAll())
                 .httpBasic(basic -> basic
                         .authenticationEntryPoint((request, response, authException) ->

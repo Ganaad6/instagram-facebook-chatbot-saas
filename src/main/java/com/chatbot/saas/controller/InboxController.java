@@ -1,7 +1,10 @@
 package com.chatbot.saas.controller;
 
 import com.chatbot.saas.dto.request.AgentMessageRequest;
+import com.chatbot.saas.dto.response.ChatSummaryResponse;
 import com.chatbot.saas.dto.response.CustomerResponse;
+import com.chatbot.saas.service.ChatListService;
+import org.springframework.data.domain.Page;
 import com.chatbot.saas.dto.response.MessageResponse;
 import com.chatbot.saas.security.TenantContext;
 import com.chatbot.saas.service.CustomerService;
@@ -31,6 +34,22 @@ public class InboxController {
     private final CustomerService customerService;
     private final MessageLogService messageLogService;
     private final TenantContext tenantContext;
+    private final ChatListService chatListService;
+
+    /** Every customer conversation, most recently active first (the dashboard's chat list). */
+    @GetMapping("/chats")
+    public ResponseEntity<Page<ChatSummaryResponse>> chats(@PathVariable Long businessId,
+                                                           @RequestParam(defaultValue = "0") int page,
+                                                           @RequestParam(defaultValue = "30") int size) {
+        tenantContext.assertAccess(businessId);
+        return ResponseEntity.ok(chatListService.list(businessId, Math.max(page, 0), Math.min(Math.max(size, 1), 100)));
+    }
+
+    @GetMapping("/chats/{customerId}")
+    public ResponseEntity<ChatSummaryResponse> chat(@PathVariable Long businessId, @PathVariable Long customerId) {
+        tenantContext.assertAccess(businessId);
+        return ResponseEntity.ok(chatListService.get(businessId, customerId));
+    }
 
     /** Customers waiting for a person (oldest request first), then others the bot is paused for. */
     @GetMapping("/inbox")

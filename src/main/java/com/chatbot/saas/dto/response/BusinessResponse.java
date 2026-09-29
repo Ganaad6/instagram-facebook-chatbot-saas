@@ -19,6 +19,9 @@ public class BusinessResponse {
     private boolean metaConnected;
     /** True once the shop connected its QPay merchant account; chat orders then get a payment link. */
     private boolean qpayConnected;
+    /** The connected QPay merchant login (never the password). */
+    private String qpayUsername;
+    private String notificationWebhookUrl;
     private LocalDateTime createdAt;
 
     public static BusinessResponse from(Business business) {
@@ -31,6 +34,8 @@ public class BusinessResponse {
                 .status(business.getStatus())
                 .metaConnected(business.getAccessToken() != null)
                 .qpayConnected(business.isQpayConnected())
+                .qpayUsername(business.getQpayUsername())
+                .notificationWebhookUrl(business.getNotificationWebhookUrl())
                 .createdAt(business.getCreatedAt())
                 .build();
     }

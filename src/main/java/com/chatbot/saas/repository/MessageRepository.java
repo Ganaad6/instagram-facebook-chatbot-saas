@@ -14,5 +14,6 @@ public interface MessageRepository extends JpaRepository<Message, Long> {
     List<Message> findAllByBusinessId(Long businessId);
     boolean existsByBusinessIdAndMessageId(Long businessId, String messageId);
     List<Message> findAllByCustomerIdOrderByIdDesc(Long customerId, Pageable pageable);
+    Optional<Message> findFirstByCustomerIdOrderByIdDesc(Long customerId);
     Optional<Message> findFirstByCustomerIdAndDirectionOrderByIdDesc(Long customerId, Message.Direction direction);
 }
