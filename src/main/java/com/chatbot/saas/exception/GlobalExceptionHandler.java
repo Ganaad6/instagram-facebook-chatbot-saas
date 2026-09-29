@@ -39,6 +39,21 @@ public class GlobalExceptionHandler {
         return ResponseEntity.status(HttpStatus.FORBIDDEN).body(body);
     }
 
+    @ExceptionHandler(InvalidCredentialsException.class)
+    public ResponseEntity<Map<String, Object>> handleInvalidCredentials(InvalidCredentialsException ex) {
+        return error(HttpStatus.UNAUTHORIZED, ex.getMessage());
+    }
+
+    @ExceptionHandler(AccountDisabledException.class)
+    public ResponseEntity<Map<String, Object>> handleAccountDisabled(AccountDisabledException ex) {
+        return error(HttpStatus.FORBIDDEN, ex.getMessage());
+    }
+
+    @ExceptionHandler(AccountLockedException.class)
+    public ResponseEntity<Map<String, Object>> handleAccountLocked(AccountLockedException ex) {
+        return error(HttpStatus.TOO_MANY_REQUESTS, ex.getMessage());
+    }
+
     @ExceptionHandler(MessagingWindowClosedException.class)
     public ResponseEntity<Map<String, Object>> handleMessagingWindowClosed(MessagingWindowClosedException ex) {
         Map<String, Object> body = new HashMap<>();
@@ -73,6 +88,13 @@ public class GlobalExceptionHandler {
         body.put("error", errorMsg);
         body.put("status", 400);
         return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(body);
+    }
+
+    private static ResponseEntity<Map<String, Object>> error(HttpStatus status, String message) {
+        Map<String, Object> body = new HashMap<>();
+        body.put("error", message);
+        body.put("status", status.value());
+        return ResponseEntity.status(status).body(body);
     }
 
     @ExceptionHandler(RuntimeException.class)

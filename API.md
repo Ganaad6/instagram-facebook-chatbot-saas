@@ -2,12 +2,50 @@
 
 ## Authentication
 
-Every endpoint under `/api/**`, except the ones explicitly marked "Public" below, requires an
-`X-API-Key: <your-api-key>` header. The key is returned once, at registration or key-rotation
-time - it is never shown again, only re-issued.
+Every endpoint under `/api/**`, except the ones explicitly marked "Public" below, requires
+either:
+
+- an `X-API-Key: <your-api-key>` header (integrations). The key is returned once, at
+  registration or key-rotation time - it is never shown again, only re-issued. It has the
+  owner's full access; or
+- a dashboard login session (the `SESSION` cookie from `POST /api/auth/login`). Cookie-based
+  requests that change something (`POST`/`PUT`/`DELETE`) must also send the `X-XSRF-TOKEN`
+  header with the value of the `XSRF-TOKEN` cookie; call `GET /api/auth/csrf` once to get it.
+
+Dashboard users are `OWNER` or `STAFF`. Staff can do everything with orders, payments checks,
+catalog, customers and the inbox; only the owner (or the API key) can change shop settings,
+Meta/QPay connections, the notification webhook, the API key and staff logins - staff get `403`.
 
 `/api/admin/**` endpoints instead require HTTP Basic auth with the operator credentials
 (`ADMIN_USERNAME` / `ADMIN_PASSWORD`).
+
+## Dashboard sign-in
+- `GET /api/auth/csrf` - **Public**. Sets the `XSRF-TOKEN` cookie.
+- `POST /api/auth/signup` `{"businessName", "name", "email", "password"}` - **Public** (unless
+  `SIGNUP_ENABLED=false`). Creates a shop and its owner and signs them in. `201` with `/me`.
+- `POST /api/auth/login` `{"email", "password"}` - **Public**. `401` wrong email or password
+  (same answer for unknown emails), `403` user deactivated or shop suspended, `429` after 10
+  wrong passwords in a row (locked 15 minutes).
+- `POST /api/auth/logout`
+- `GET /api/auth/me` - `{"user": {id, email, name, role, ...}, "business": {...}}`
+- `POST /api/auth/password` `{"currentPassword", "newPassword"}` - Signs out other sessions.
+- `GET /api/auth/links/{token}` - **Public**. What an invite / reset link is for:
+  `{email, name, businessName, purpose: INVITE|RESET}`; `401` if used or expired.
+- `POST /api/auth/links/accept` `{"token", "name", "password"}` - **Public**. Sets the password
+  and signs in. Links work once; invites last 72h, resets 24h.
+
+Passwords are 8-72 characters, stored with BCrypt. There is no email sending: invite and
+reset links are returned by the API and handed over by the owner (or the admin, for owners).
+
+## Staff logins (owner only)
+All under `/api/businesses/{businessId}/staff`.
+- `GET` - List users (`invitePending` until they set a password)
+- `POST` `{"email", "name", "role": "OWNER"|"STAFF"}` - Invite; returns `{user, link: {url, expiresAt}}`
+- `POST /{userId}/password-link` - New invite/reset link for someone who forgot their password
+- `PUT /{userId}` `{"role", "active"}` - Change role or (de)activate; deactivating signs them out
+- `DELETE /{userId}`
+
+You can't demote, deactivate or delete yourself, or leave the shop without an active owner.
 
 ## Businesses
 - `POST /api/businesses/register` - Register a new business (**Public**). Returns the business
@@ -15,9 +53,13 @@ time - it is never shown again, only re-issued.
 - `GET /api/businesses/{id}` - Get business by ID (must be your own `id`)
 - `PUT /api/businesses/{id}` - Update business (must be your own `id`)
 - `POST /api/businesses/{id}/notifications/webhook-url` - Set the order-notification webhook URL
+- `POST /api/businesses/{id}/api-key` - Issue a new API key (owner only). Returned once; the old
+  key stops working.
 
 ## Admin (HTTP Basic, ROLE_ADMIN)
 - `GET /api/admin/businesses` - List all businesses
+- `POST /api/admin/businesses/{id}/owner-invite` `{"email", "name"}` - Dashboard login link for
+  the shop's owner (creates the owner if needed; for an existing owner it's a password reset)
 - `POST /api/admin/businesses/{id}/suspend` - Suspend a business (e.g. non-payment); its API key
   stops working and its incoming webhook messages are dropped
 - `POST /api/admin/businesses/{id}/activate` - Reactivate a suspended business

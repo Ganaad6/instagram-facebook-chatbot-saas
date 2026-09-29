@@ -40,15 +40,25 @@ public class BusinessController {
     @PutMapping("/{id}")
     public ResponseEntity<BusinessResponse> updateBusiness(@PathVariable Long id,
                                                            @Valid @RequestBody BusinessUpdateRequest request) {
-        tenantContext.assertAccess(id);
+        tenantContext.assertOwner(id);
         return ResponseEntity.ok(businessService.updateBusiness(id, request));
+    }
+
+    /**
+     * Issues a new API key for integrations, returned once; the previous key stops working.
+     * Lets a dashboard owner get a key without going through the admin.
+     */
+    @PostMapping("/{id}/api-key")
+    public ResponseEntity<BusinessRegistrationResponse> rotateApiKey(@PathVariable Long id) {
+        tenantContext.assertOwner(id);
+        return ResponseEntity.ok(businessService.rotateApiKey(id));
     }
 
     @PostMapping("/{id}/notifications/webhook-url")
     public ResponseEntity<Map<String, String>> setNotificationWebhookUrl(
             @PathVariable Long id,
             @RequestBody NotificationWebhookRequest request) {
-        tenantContext.assertAccess(id);
+        tenantContext.assertOwner(id);
         Business business = businessService.findBusinessById(id);
         business.setNotificationWebhookUrl(request.getWebhookUrl());
         businessRepository.save(business);

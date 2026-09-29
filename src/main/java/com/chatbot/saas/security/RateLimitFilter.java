@@ -20,8 +20,9 @@ import java.util.function.LongSupplier;
 
 /**
  * Simple in-memory, per-IP, fixed-window rate limiter for the endpoints reachable without an
- * API key: business registration, the Meta webhook, and the admin endpoints (whose HTTP Basic
- * password would otherwise be open to brute force). In-memory means this only works correctly
+ * API key: business registration, the Meta webhook, the admin endpoints (whose HTTP Basic
+ * password would otherwise be open to brute force) and the dashboard sign-in endpoints (which
+ * additionally lock an account after repeated wrong passwords, see StaffAuthService). In-memory means this only works correctly
  * for a single app instance - acceptable for now since deployment is single-instance; would
  * need a shared store (e.g. Redis) if this is ever scaled horizontally.
  *
@@ -46,6 +47,7 @@ public class RateLimitFilter extends OncePerRequestFilter {
     static final int REGISTER_LIMIT_PER_MINUTE = 10;
     static final int WEBHOOK_LIMIT_PER_MINUTE = 600;
     static final int ADMIN_LIMIT_PER_MINUTE = 30;
+    static final int AUTH_LIMIT_PER_MINUTE = 20;
     /** Expired windows are purged once a map grows past this, bounding memory under IP churn. */
     static final int SWEEP_THRESHOLD = 10_000;
 
@@ -54,6 +56,7 @@ public class RateLimitFilter extends OncePerRequestFilter {
     private final ConcurrentHashMap<String, Window> registerWindows = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<String, Window> webhookWindows = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<String, Window> adminWindows = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<String, Window> authWindows = new ConcurrentHashMap<>();
     private final LongSupplier clock;
 
     public RateLimitFilter() {
@@ -77,6 +80,8 @@ public class RateLimitFilter extends OncePerRequestFilter {
             limited = isRateLimited(webhookWindows, clientIp, WEBHOOK_LIMIT_PER_MINUTE);
         } else if (path.startsWith("/api/admin")) {
             limited = isRateLimited(adminWindows, clientIp, ADMIN_LIMIT_PER_MINUTE);
+        } else if ("POST".equalsIgnoreCase(request.getMethod()) && isSignInPath(path)) {
+            limited = isRateLimited(authWindows, clientIp, AUTH_LIMIT_PER_MINUTE);
         }
 
         if (limited) {
@@ -84,6 +89,11 @@ public class RateLimitFilter extends OncePerRequestFilter {
             return;
         }
         filterChain.doFilter(request, response);
+    }
+
+    /** Password guessing and account creation; not logout or password change (already signed in). */
+    private static boolean isSignInPath(String path) {
+        return path.equals("/api/auth/login") || path.equals("/api/auth/signup") || path.equals("/api/auth/links/accept");
     }
 
     private boolean isRateLimited(ConcurrentHashMap<String, Window> windows, String key, int limit) {
@@ -101,7 +111,7 @@ public class RateLimitFilter extends OncePerRequestFilter {
     }
 
     int trackedClientCount() {
-        return registerWindows.size() + webhookWindows.size() + adminWindows.size();
+        return registerWindows.size() + webhookWindows.size() + adminWindows.size() + authWindows.size();
     }
 
     private void writeTooManyRequests(HttpServletResponse response) throws IOException {

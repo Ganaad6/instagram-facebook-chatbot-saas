@@ -21,6 +21,14 @@ public class ApiKeyGenerator {
         return PREFIX + Base64.getUrlEncoder().withoutPadding().encodeToString(bytes);
     }
 
+    /** A random URL-safe secret for one-time links (invites, password resets). */
+    public static String randomToken() {
+        byte[] bytes = new byte[RANDOM_BYTES];
+        RANDOM.nextBytes(bytes);
+        return Base64.getUrlEncoder().withoutPadding().encodeToString(bytes);
+    }
+
+    /** SHA-256 hex; used for API keys and one-time link tokens, which are stored only hashed. */
     public static String hash(String rawApiKey) {
         try {
             MessageDigest digest = MessageDigest.getInstance("SHA-256");

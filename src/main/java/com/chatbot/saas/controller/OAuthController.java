@@ -30,7 +30,7 @@ public class OAuthController {
      */
     @GetMapping("/authorize")
     public ResponseEntity<Map<String, Object>> authorize(@RequestParam Long businessId) {
-        tenantContext.assertAccess(businessId);
+        tenantContext.assertOwner(businessId);
         return ResponseEntity.ok(Map.of(
                 "authorizationUrl", oAuthService.generateAuthorizationUrl(businessId),
                 "expiresInMinutes", oAuthService.getAuthorizationUrlTtlMinutes()));

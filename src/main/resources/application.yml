@@ -16,6 +16,10 @@ spring:
     enabled: true
     # db/postgres holds PostgreSQL-only migrations (e.g. Directus grants) that H2 tests skip
     locations: classpath:db/migration,classpath:db/postgres
+  session:
+    jdbc:
+      # The tables come from Flyway (V22__spring_session.sql)
+      initialize-schema: never
   lifecycle:
     timeout-per-shutdown-phase: 30s
   task:
@@ -31,6 +35,16 @@ server:
   # Trust X-Forwarded-For/-Proto only from proxies in server.tomcat.remoteip.internal-proxies
   # (private networks by default); set to "none" if the app is exposed without a proxy
   forward-headers-strategy: ${FORWARD_HEADERS_STRATEGY:native}
+  servlet:
+    session:
+      # Dashboard sign-in; idle sessions expire after this
+      timeout: ${SESSION_TIMEOUT:12h}
+      cookie:
+        name: SESSION
+        http-only: true
+        same-site: lax
+        # Secure (HTTPS-only) cookies are forced on by application-prod.yml
+        secure: ${SESSION_COOKIE_SECURE:false}
 
 meta:
   app:
@@ -64,6 +78,17 @@ qpay:
   # Unpaid invoices younger than this are re-checked with QPay in case a callback was missed
   reconcile-window-hours: ${QPAY_RECONCILE_WINDOW_HOURS:3}
   reconcile-interval-ms: ${QPAY_RECONCILE_INTERVAL_MS:300000}
+
+app:
+  # Public URL of the app; dashboard links (invites, password resets) point here
+  base-url: ${BASE_URL:http://localhost:8080}
+
+auth:
+  # Anyone can create a shop from the dashboard's sign-up page; set false to onboard shops only
+  # through the admin API
+  signup-enabled: ${SIGNUP_ENABLED:true}
+  invite-ttl-hours: ${AUTH_INVITE_TTL_HOURS:72}
+  reset-ttl-hours: ${AUTH_RESET_TTL_HOURS:24}
 
 directus:
   public-url: ${DIRECTUS_PUBLIC_URL:}

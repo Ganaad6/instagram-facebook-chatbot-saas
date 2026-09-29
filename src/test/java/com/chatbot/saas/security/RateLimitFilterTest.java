@@ -59,6 +59,16 @@ class RateLimitFilterTest {
     }
 
     @Test
+    void dashboardSignInAttemptsShareOneLimitPerIp() throws Exception {
+        for (int i = 0; i < RateLimitFilter.AUTH_LIMIT_PER_MINUTE; i++) {
+            String path = i % 2 == 0 ? "/api/auth/login" : "/api/auth/links/accept";
+            assertEquals(200, send("POST", path, "1.2.3.4", null));
+        }
+        assertEquals(429, send("POST", "/api/auth/signup", "1.2.3.4", null));
+        assertEquals(200, send("POST", "/api/auth/logout", "1.2.3.4", null), "signing out is never blocked");
+    }
+
+    @Test
     void authenticatedApiIsNotLimitedHere() throws Exception {
         for (int i = 0; i < 1000; i++) {
             assertEquals(200, send("GET", "/api/customers", "1.2.3.4", null));

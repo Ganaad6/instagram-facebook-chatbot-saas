@@ -26,7 +26,7 @@ public class PaymentController {
     @PutMapping("/payments/qpay")
     public ResponseEntity<Map<String, Object>> connectQPay(@PathVariable Long businessId,
                                                            @Valid @RequestBody QPayConnectRequest request) {
-        tenantContext.assertAccess(businessId);
+        tenantContext.assertOwner(businessId);
         Business business = businessService.findBusinessById(businessId);
         paymentService.connectQPay(business, request.getUsername().trim(), request.getPassword(),
                 request.getInvoiceCode().trim());
@@ -35,7 +35,7 @@ public class PaymentController {
 
     @DeleteMapping("/payments/qpay")
     public ResponseEntity<Map<String, Object>> disconnectQPay(@PathVariable Long businessId) {
-        tenantContext.assertAccess(businessId);
+        tenantContext.assertOwner(businessId);
         paymentService.disconnectQPay(businessService.findBusinessById(businessId));
         return ResponseEntity.ok(Map.of("qpayConnected", false));
     }

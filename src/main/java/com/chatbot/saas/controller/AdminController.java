@@ -1,9 +1,12 @@
 package com.chatbot.saas.controller;
 
+import com.chatbot.saas.dto.request.AuthRequests;
 import com.chatbot.saas.dto.response.BusinessRegistrationResponse;
 import com.chatbot.saas.dto.response.BusinessResponse;
 import com.chatbot.saas.service.BusinessService;
 import com.chatbot.saas.service.OAuthService;
+import com.chatbot.saas.service.StaffService;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -13,9 +16,10 @@ import java.util.Map;
 
 /**
  * Operator-only endpoints for onboarding and lifecycle management of tenant businesses.
- * Protected by HTTP Basic auth (ROLE_ADMIN) - see SecurityConfig. There is no admin UI yet,
- * so this is used directly (e.g. via curl) as part of the manual-billing workflow: suspend a
- * business on non-payment, re-activate once paid, rotate a leaked API key.
+ * Protected by HTTP Basic auth (ROLE_ADMIN) - see SecurityConfig. There is no admin UI (the
+ * dashboard is for shops), so this is used directly (e.g. via curl) as part of the
+ * manual-billing workflow: suspend a business on non-payment, re-activate once paid, rotate a
+ * leaked API key, send an owner their dashboard login link.
  */
 @RestController
 @RequestMapping("/api/admin/businesses")
@@ -24,6 +28,7 @@ public class AdminController {
 
     private final BusinessService businessService;
     private final OAuthService oAuthService;
+    private final StaffService staffService;
 
     @GetMapping
     public ResponseEntity<List<BusinessResponse>> listBusinesses() {
@@ -55,6 +60,16 @@ public class AdminController {
         return ResponseEntity.ok(Map.of(
                 "authorizationUrl", oAuthService.generateAuthorizationUrl(id),
                 "expiresInMinutes", oAuthService.getAuthorizationUrlTtlMinutes()));
+    }
+
+    /**
+     * Onboards (or recovers) a shop owner's dashboard login: returns a one-time link for them
+     * to set their password. For shops registered through the API, or an owner locked out.
+     */
+    @PostMapping("/{id}/owner-invite")
+    public ResponseEntity<StaffService.Invitation> ownerInvite(@PathVariable Long id,
+                                                               @Valid @RequestBody AuthRequests.InviteOwner request) {
+        return ResponseEntity.ok(staffService.inviteOwnerAsAdmin(id, request.email(), request.name()));
     }
 
     @DeleteMapping("/{id}")

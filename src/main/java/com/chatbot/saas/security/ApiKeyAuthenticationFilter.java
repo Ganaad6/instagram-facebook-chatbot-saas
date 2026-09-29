@@ -21,7 +21,8 @@ import java.util.Map;
 import java.util.Optional;
 
 /**
- * Authenticates business-scoped API requests via the {@code X-API-Key} header. Runs ahead of
+ * Authenticates business-scoped API requests via the {@code X-API-Key} header (requests without
+ * one fall through to the dashboard session, {@link StaffSessionFilter}). Runs ahead of
  * Spring Security's authorization checks, so it must exclude public/admin routes itself via
  * {@link #shouldNotFilter} - the {@code permitAll()}/{@code hasRole("ADMIN")} rules in
  * SecurityConfig only govern the later AuthorizationFilter, not this one.
@@ -29,7 +30,7 @@ import java.util.Optional;
 @RequiredArgsConstructor
 public class ApiKeyAuthenticationFilter extends OncePerRequestFilter {
 
-    private static final String API_KEY_HEADER = "X-API-Key";
+    static final String API_KEY_HEADER = "X-API-Key";
     private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
 
     private final BusinessService businessService;
@@ -51,7 +52,8 @@ public class ApiKeyAuthenticationFilter extends OncePerRequestFilter {
                                      FilterChain filterChain) throws ServletException, IOException {
         String apiKey = request.getHeader(API_KEY_HEADER);
         if (apiKey == null || apiKey.isBlank()) {
-            writeError(response, 401, "Missing X-API-Key header");
+            // Maybe a dashboard session (StaffSessionFilter); otherwise authorization answers 401
+            filterChain.doFilter(request, response);
             return;
         }
 
@@ -68,7 +70,9 @@ public class ApiKeyAuthenticationFilter extends OncePerRequestFilter {
         }
 
         UsernamePasswordAuthenticationToken authentication = new UsernamePasswordAuthenticationToken(
-                business.getId(), null, List.of(new SimpleGrantedAuthority("ROLE_BUSINESS")));
+                business.getId(), null,
+                // The key is the shop's master credential: everything its owner can do
+                List.of(new SimpleGrantedAuthority("ROLE_BUSINESS"), new SimpleGrantedAuthority("ROLE_OWNER")));
         SecurityContextHolder.getContext().setAuthentication(authentication);
 
         filterChain.doFilter(request, response);
