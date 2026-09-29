@@ -88,6 +88,14 @@ changes their Facebook password, send them a new connect link.
 - `GET|POST /webhook/qpay/{orderId}?token=` - QPay payment callback. Always `200 SUCCESS`; the
   payment is only recorded after the app confirms it with QPay. Forged tokens are ignored.
 
+## Product photos
+- `POST /api/businesses/{businessId}/media` - multipart field `file`: a JPEG, PNG, WebP or GIF
+  up to 5 MB (the type is detected from the file itself). Returns `{"id", "url"}`; pass the
+  `id` as `imageFileId` when creating/updating a product. `PUT .../products/{id}`
+  `{"removeImage": true}` removes a product's photo.
+- `GET /media/{id}` - **Public** (Meta fetches photos from here). Uploads no product uses are
+  deleted after a day.
+
 ## Products / Categories / Orders / Analytics
 - `/api/businesses/{businessId}/products/**`
 - `/api/businesses/{businessId}/categories/**`

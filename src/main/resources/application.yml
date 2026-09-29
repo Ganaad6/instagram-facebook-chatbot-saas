@@ -16,6 +16,11 @@ spring:
     enabled: true
     # db/postgres holds PostgreSQL-only migrations (e.g. Directus grants) that H2 tests skip
     locations: classpath:db/migration,classpath:db/postgres
+  servlet:
+    multipart:
+      # Product photo uploads (MediaService allows 5 MB images)
+      max-file-size: 6MB
+      max-request-size: 6MB
   session:
     jdbc:
       # The tables come from Flyway (V22__spring_session.sql)

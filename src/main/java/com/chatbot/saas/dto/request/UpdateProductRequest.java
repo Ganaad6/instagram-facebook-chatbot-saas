@@ -13,4 +13,6 @@ public class UpdateProductRequest {
     private String description;
     private Boolean isActive;
     private UUID imageFileId;
+    /** True removes the product's photo (imageFileId null alone means "unchanged"). */
+    private Boolean removeImage;
 }

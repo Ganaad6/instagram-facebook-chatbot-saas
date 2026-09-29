@@ -1,11 +1,9 @@
 package com.chatbot.saas.service;
 
-import com.chatbot.saas.dto.response.ProductResponse;
 import com.chatbot.saas.entity.*;
 import com.chatbot.saas.repository.ConversationRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
@@ -16,6 +14,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.UUID;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
@@ -52,9 +51,8 @@ public class ChatbotEngineService {
     private final OAuthService oAuthService;
     private final MessageLogService messageLogService;
     private final PaymentService paymentService;
+    private final MediaService mediaService;
 
-    @Value("${directus.public-url:}")
-    private String directusPublicUrl;
 
     /** Everything needed to reply within one processed message. */
     private record Chat(Conversation conversation, String senderId, String token, String platform) {
@@ -268,8 +266,9 @@ public class ChatbotEngineService {
             reply(chat, "Энэ ангиллд бараа байхгүй байна.");
             return;
         }
+        Map<UUID, String> imageUrls = mediaService.imageUrls(products.stream().map(Product::getImageFileId).toList());
         for (Product product : products) {
-            String imageUrl = ProductResponse.resolveImageUrl(product.getImageFileId(), directusPublicUrl);
+            String imageUrl = product.getImageFileId() != null ? imageUrls.get(product.getImageFileId()) : null;
             if (imageUrl != null) {
                 String messageId = metaReplyService.sendImage(chat.senderId(), imageUrl, chat.token());
                 messageLogService.recordOutbound(chat.conversation(), messageId, "[image] " + imageUrl);

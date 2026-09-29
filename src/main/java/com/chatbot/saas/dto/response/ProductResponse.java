@@ -22,7 +22,7 @@ public class ProductResponse {
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
 
-    public static ProductResponse from(Product product, String directusPublicUrl) {
+    public static ProductResponse from(Product product, String imageUrl) {
         return ProductResponse.builder()
                 .id(product.getId())
                 .businessId(product.getBusiness().getId())
@@ -32,19 +32,9 @@ public class ProductResponse {
                 .price(product.getPrice())
                 .description(product.getDescription())
                 .isActive(product.getIsActive())
-                .imageUrl(resolveImageUrl(product.getImageFileId(), directusPublicUrl))
+                .imageUrl(imageUrl)
                 .createdAt(product.getCreatedAt())
                 .updatedAt(product.getUpdatedAt())
                 .build();
-    }
-
-    public static String resolveImageUrl(java.util.UUID imageFileId, String directusPublicUrl) {
-        if (imageFileId == null || directusPublicUrl == null || directusPublicUrl.isBlank()) {
-            return null;
-        }
-        String base = directusPublicUrl.endsWith("/")
-                ? directusPublicUrl.substring(0, directusPublicUrl.length() - 1)
-                : directusPublicUrl;
-        return base + "/assets/" + imageFileId;
     }
 }

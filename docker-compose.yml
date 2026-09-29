@@ -6,11 +6,12 @@ services:
     environment:
       POSTGRES_DB: chatbot_saas
       POSTGRES_USER: postgres
-      # Superuser: only used by the init script below. The app and Directus get their own roles.
+      # Superuser: only used by the init script below. The app (and Directus, if used) get their own roles.
       POSTGRES_PASSWORD: ${POSTGRES_SUPERUSER_PASSWORD:?set POSTGRES_SUPERUSER_PASSWORD in .env}
       APP_DB_USER: chatbot_app
       APP_DB_PASSWORD: ${APP_DB_PASSWORD:?set APP_DB_PASSWORD in .env}
-      DIRECTUS_DB_PASSWORD: ${DIRECTUS_DB_PASSWORD:?set DIRECTUS_DB_PASSWORD in .env}
+      # Only needed with the optional Directus service (see below); leave empty otherwise
+      DIRECTUS_DB_PASSWORD: ${DIRECTUS_DB_PASSWORD:-}
     ports:
       # Localhost only - reach it from the host for psql/backups, never from the internet
       - "127.0.0.1:5432:5432"
@@ -52,7 +53,8 @@ services:
       PORT: 8080
       SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-}
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
-      DIRECTUS_PUBLIC_URL: ${DIRECTUS_PUBLIC_URL:-http://localhost:8055}
+      # Only for product photos uploaded through Directus before the dashboard existed
+      DIRECTUS_PUBLIC_URL: ${DIRECTUS_PUBLIC_URL:-}
       QPAY_API_URL: ${QPAY_API_URL:-https://merchant-sandbox.qpay.mn/v2}
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://localhost:8080/actuator/health | grep -q UP"]
@@ -61,9 +63,11 @@ services:
       start_period: 60s
       retries: 5
 
-  # Self-serve catalog admin: shop owners log in here to add/edit their own products
-  # (with photo upload) and toggle stock availability. See README.md for one-time setup.
+  # Legacy, optional: the Directus catalog admin used before the dashboard. Shops now manage
+  # products and photos in the dashboard, so this only runs with `--profile directus` - for
+  # deployments that still want it. See README.md "Directus (legacy)".
   directus:
+    profiles: ["directus"]
     image: directus/directus:11
     container_name: chatbot_saas_directus
     restart: unless-stopped
@@ -75,14 +79,14 @@ services:
     ports:
       - "${DIRECTUS_PORT:-8055}:8055"
     environment:
-      KEY: ${DIRECTUS_KEY:?set DIRECTUS_KEY in .env}
-      SECRET: ${DIRECTUS_SECRET:?set DIRECTUS_SECRET in .env}
+      KEY: ${DIRECTUS_KEY:-}
+      SECRET: ${DIRECTUS_SECRET:-}
       DB_CLIENT: pg
       DB_HOST: postgres
       DB_PORT: 5432
       DB_DATABASE: chatbot_saas
       DB_USER: directus
-      DB_PASSWORD: ${DIRECTUS_DB_PASSWORD:?set DIRECTUS_DB_PASSWORD in .env}
+      DB_PASSWORD: ${DIRECTUS_DB_PASSWORD:-}
       ADMIN_EMAIL: ${DIRECTUS_ADMIN_EMAIL}
       ADMIN_PASSWORD: ${DIRECTUS_ADMIN_PASSWORD}
       PUBLIC_URL: ${DIRECTUS_PUBLIC_URL:-http://localhost:8055}

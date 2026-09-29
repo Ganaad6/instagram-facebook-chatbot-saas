@@ -37,27 +37,17 @@ class ChatbotEngineServiceTest {
     private MessageLogService messageLogService;
     @Mock
     private PaymentService paymentService;
+    @Mock
+    private MediaService mediaService;
 
     private ChatbotEngineService chatbotEngineService;
-
-    private static final String DIRECTUS_PUBLIC_URL = "http://localhost:8055";
 
     @BeforeEach
     void setUp() {
         chatbotEngineService = new ChatbotEngineService(
                 conversationRepository, categoryService, productService,
-                orderService, orderNotificationService, metaReplyService, oAuthService, messageLogService, paymentService);
-        setDirectusPublicUrl(chatbotEngineService, DIRECTUS_PUBLIC_URL);
-    }
-
-    private static void setDirectusPublicUrl(ChatbotEngineService service, String url) {
-        try {
-            var field = ChatbotEngineService.class.getDeclaredField("directusPublicUrl");
-            field.setAccessible(true);
-            field.set(service, url);
-        } catch (ReflectiveOperationException e) {
-            throw new RuntimeException(e);
-        }
+                orderService, orderNotificationService, metaReplyService, oAuthService, messageLogService,
+                paymentService, mediaService);
     }
 
     private Product product(Long id, String name, UUID imageFileId) {
@@ -91,10 +81,12 @@ class ChatbotEngineServiceTest {
         when(productService.getActiveProductsByCategory(1L, 10L))
                 .thenReturn(List.of(withImage, withoutImage));
 
+        when(mediaService.imageUrls(anyList())).thenReturn(java.util.Map.of(imageFileId, "https://shop.example/media/" + imageFileId));
+
         chatbotEngineService.process(conversation, "1", "INSTAGRAM");
 
         verify(metaReplyService, times(1))
-                .sendImage("customer-1", DIRECTUS_PUBLIC_URL + "/assets/" + imageFileId, "token");
+                .sendImage("customer-1", "https://shop.example/media/" + imageFileId, "token");
         verify(metaReplyService, times(1))
                 .sendMenuMessage(eq("customer-1"), eq("INSTAGRAM"), anyString(), anyList(), eq("token"));
     }
