@@ -22,6 +22,8 @@ import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.www.BasicAuthenticationFilter;
 import org.springframework.security.web.context.RequestAttributeSecurityContextRepository;
 import org.springframework.security.web.csrf.CookieCsrfTokenRepository;
+import org.springframework.security.web.header.writers.ReferrerPolicyHeaderWriter;
+import org.springframework.security.web.header.writers.StaticHeadersWriter;
 
 import java.util.Arrays;
 import java.util.Map;
@@ -40,6 +42,9 @@ public class SecurityConfig {
     private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
     private static final Set<String> SAFE_METHODS = Set.of("GET", "HEAD", "OPTIONS", "TRACE");
     static final String SESSION_COOKIE = "SESSION";
+    static final String CONTENT_SECURITY_POLICY = "default-src 'self'; script-src 'self'; style-src 'self'; "
+            + "img-src 'self' data: https:; connect-src 'self'; font-src 'self'; object-src 'none'; "
+            + "base-uri 'self'; form-action 'self'; frame-ancestors 'none'";
 
     @Value("${server.servlet.session.cookie.secure:false}")
     private boolean secureCookies;
@@ -76,6 +81,17 @@ public class SecurityConfig {
                         .csrfTokenRequestHandler(new SpaCsrfTokenRequestHandler())
                         .requireCsrfProtectionMatcher(SecurityConfig::requiresCsrf))
                 .cors(cors -> {})
+                .headers(headers -> headers
+                        // The dashboard loads only its own bundled scripts and styles; product
+                        // photos may still come from a legacy Directus host (https)
+                        .contentSecurityPolicy(csp -> csp.policyDirectives(CONTENT_SECURITY_POLICY))
+                        .frameOptions(frame -> frame.deny())
+                        .referrerPolicy(referrer -> referrer.policy(
+                                ReferrerPolicyHeaderWriter.ReferrerPolicy.STRICT_ORIGIN_WHEN_CROSS_ORIGIN))
+                        .addHeaderWriter(new StaticHeadersWriter("Permissions-Policy",
+                                "camera=(), microphone=(), geolocation=(), payment=()"))
+                        // Sent on HTTPS requests only (behind the proxy: X-Forwarded-Proto)
+                        .httpStrictTransportSecurity(hsts -> hsts.includeSubDomains(true).maxAgeInSeconds(31_536_000)))
                 // Spring Security keeps no session state of its own: StaffSessionFilter re-reads
                 // the dashboard login from the Spring Session store on every request, and
                 // AuthController rotates the session id at sign-in. Session management must be

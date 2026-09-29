@@ -8,7 +8,11 @@ import com.chatbot.saas.dto.response.BusinessResponse;
 import com.chatbot.saas.entity.Business;
 import com.chatbot.saas.repository.BusinessRepository;
 import com.chatbot.saas.security.TenantContext;
+import com.chatbot.saas.exception.ValidationException;
 import com.chatbot.saas.service.BusinessService;
+import com.chatbot.saas.util.PublicAddressGuard;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.util.StringUtils;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -26,8 +30,19 @@ public class BusinessController {
     private final BusinessRepository businessRepository;
     private final TenantContext tenantContext;
 
+    /** Plain-http webhook URLs are only for local development. */
+    @Value("${notifications.allow-http:false}")
+    private boolean allowHttpNotifications;
+
+    /** Self-serve sign-up switch; covers this API registration as well as the dashboard's. */
+    @Value("${auth.signup-enabled:true}")
+    private boolean signupEnabled;
+
     @PostMapping("/register")
     public ResponseEntity<BusinessRegistrationResponse> registerBusiness(@Valid @RequestBody BusinessRegistrationRequest request) {
+        if (!signupEnabled) {
+            throw new ValidationException("Шинэ бүртгэл одоогоор хаалттай байна");
+        }
         return ResponseEntity.status(HttpStatus.CREATED).body(businessService.registerBusiness(request));
     }
 
@@ -59,8 +74,15 @@ public class BusinessController {
             @PathVariable Long id,
             @RequestBody NotificationWebhookRequest request) {
         tenantContext.assertOwner(id);
+        String url = StringUtils.hasText(request.getWebhookUrl()) ? request.getWebhookUrl().trim() : null;
+        if (url != null) {
+            String problem = PublicAddressGuard.problemWith(url, allowHttpNotifications);
+            if (problem != null) {
+                throw new ValidationException(problem);
+            }
+        }
         Business business = businessService.findBusinessById(id);
-        business.setNotificationWebhookUrl(request.getWebhookUrl());
+        business.setNotificationWebhookUrl(url);
         businessRepository.save(business);
         return ResponseEntity.ok(Map.of("message", "Notification webhook URL updated"));
     }

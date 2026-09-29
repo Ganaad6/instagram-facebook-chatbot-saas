@@ -1,109 +1,129 @@
 # Instagram/Facebook Chatbot SaaS Platform
 
-A multi-tenant Spring Boot SaaS platform for managing Instagram and Facebook chatbot integrations.
+A multi-tenant platform that lets shops sell through Messenger and Instagram: a chatbot shows
+the shop's catalog, takes orders (name, phone, address), sends a QPay payment link, and hands
+the conversation to staff when a customer asks for a person. Shop owners and staff run
+everything from a web dashboard (Mongolian UI).
 
 ## Features
-- Multi-tenant business registration, authenticated via per-business API keys
-- Meta OAuth 2.0 integration (signed, expiring OAuth `state`; access tokens encrypted at rest)
-- Webhook handling for Instagram/Facebook messages (HMAC-signature verified)
-- Product catalog, orders, and a state-machine chatbot engine
-- QPay payments: each shop connects its own QPay merchant account and chat orders get a payment link
-- Conversation tracking and data collection
-- Admin-only endpoints for onboarding, suspending, and reactivating tenants (manual billing)
+- **Chatbot** for Facebook Messenger and Instagram DMs: category → product → quantity →
+  confirmation → contact details → order, with product photos and restart keywords
+- **QPay payments**: each shop connects its own QPay merchant account; orders get a payment
+  link, payments are confirmed with QPay and the customer is thanked in chat
+- **Human handoff**: customers can ask for a person; staff reply from the dashboard or their
+  normal Meta inbox and the bot stays quiet meanwhile
+- **Dashboard** for owners and staff: overview, orders, catalog with photos, chats, settings,
+  staff logins - works on phones
+- Multi-tenant with self-serve signup, owner/staff roles, and an admin API to suspend/activate
+  shops (manual billing)
+- Per-shop API keys and notification webhooks (`NEW_ORDER`, `PAYMENT_RECEIVED`,
+  `HANDOFF_REQUESTED`) for integrations
 
-## Requirements
-- Java 17+
-- PostgreSQL 14+
-- Maven 3.8+
-- Docker (for the production deployment path)
+## Contents
+- [Deploying to production](#deploying-to-production)
+- [Meta app setup](#meta-app-setup-one-time)
+- [Running the platform](#running-the-platform) - onboarding shops, admin runbook, backups, upgrades
+- [Configuration reference](#configuration-reference)
+- [Security model](#security-model)
+- [How the chatbot behaves](#how-the-chatbot-behaves) - handoff, QPay
+- [Development](#development)
+- [API.md](API.md) - full endpoint documentation
 
-## Local development setup
-1. Copy `.env.example` to `.env` and fill in values (at minimum set your own
-   `ENCRYPTION_SECRET_KEY`, `OAUTH_STATE_SECRET`, `ADMIN_PASSWORD` - the defaults are fine for
-   local dev only)
-2. Create PostgreSQL database: `createdb chatbot_saas`
-3. Run: `mvn spring-boot:run`
+## Deploying to production
 
-## API Documentation
-See [API.md](API.md) for full endpoint documentation, including authentication requirements.
+The stack is `docker-compose.yml`: PostgreSQL, the app (API + dashboard in one container) and
+[Caddy](https://caddyserver.com) in front for HTTPS with automatic Let's Encrypt certificates.
+It runs on any Linux server with Docker - a small VPS (2 GB RAM) is plenty to start.
 
-## Authentication model
+1. **Server and DNS.** Install Docker with Compose v2. Point your domain's DNS A record (e.g.
+   `shop.example.mn`) at the server and open ports 80 and 443.
+2. **Configure.** Clone the repository and create `.env`:
+   ```bash
+   cp .env.example .env
+   ```
+   Set `DOMAIN` and `BASE_URL` (`https://` + domain), and replace every placeholder
+   (`set_...`, `your_...`) with a unique value - `openssl rand -base64 24` for passwords and
+   secrets, `openssl rand -hex 16` for the 32-character `ENCRYPTION_SECRET_KEY`. The `prod`
+   profile (the compose default) **refuses to start** while any secret is missing, left at a
+   default, or copied from the template, and lists what to fix.
+3. **Start.**
+   ```bash
+   docker compose up -d --build
+   docker compose logs -f app      # wait for "Started ChatbotSaasApplication"
+   ```
+   Database migrations run automatically on every start. Open `https://your-domain` - you
+   should see the dashboard's login page.
+4. **Set up the Meta app** (next section) so shops can connect their Facebook Page.
+5. **Onboard your first shop** - sign up on the dashboard, or see [Onboarding shops](#onboarding-shops).
 
-- **Business-scoped endpoints** (`/api/businesses/**`, `/api/businesses/{id}/products`,
-  `/api/customers`, `/api/conversations`, etc.) require an `X-API-Key` header. A business receives
-  its API key exactly once, in the response to `POST /api/businesses/register` (or from an admin
-  via the rotate-key endpoint below) - it cannot be retrieved again, only rotated.
-- **Admin endpoints** (`/api/admin/**`) are protected by HTTP Basic auth using the
-  `ADMIN_USERNAME` / `ADMIN_PASSWORD` environment variables. There is no admin UI yet; these are
-  meant to be called directly (e.g. via `curl`) as part of onboarding/support.
-- **The Meta webhook** (`/webhook`) and the **OAuth callback** (`/api/auth/meta/callback`) are
-  intentionally public (Meta calls them directly) - they are protected by HMAC signature
-  verification and a signed, expiring OAuth `state` parameter, respectively, instead of an API key.
-
-## Admin runbook (manual billing)
-
-Since billing is handled outside the app, use the admin endpoints to control tenant access:
-
+**Try the whole stack locally first** (needs Docker and free ports 80/443):
 ```bash
-# List all businesses
-curl -u "$ADMIN_USERNAME:$ADMIN_PASSWORD" https://your-host/api/admin/businesses
-
-# Suspend a business (e.g. non-payment) - its API key stops working and its webhook
-# messages are silently dropped until reactivated
-curl -u "$ADMIN_USERNAME:$ADMIN_PASSWORD" -X POST https://your-host/api/admin/businesses/{id}/suspend
-
-# Reactivate once paid
-curl -u "$ADMIN_USERNAME:$ADMIN_PASSWORD" -X POST https://your-host/api/admin/businesses/{id}/activate
-
-# Get a Facebook/Instagram connect link to send to the shop owner (valid for
-# OAUTH_STATE_TTL_MINUTES, default 60). They open it, log in and pick their Page; the app then
-# stores the Page token, subscribes the Page to the webhook and fills in the Page/Instagram IDs.
-curl -u "$ADMIN_USERNAME:$ADMIN_PASSWORD" https://your-host/api/admin/businesses/{id}/meta-connect-url
-
-# Rotate a business's API key (e.g. if it leaked) - returns the new key once
-curl -u "$ADMIN_USERNAME:$ADMIN_PASSWORD" -X POST https://your-host/api/admin/businesses/{id}/rotate-api-key
+scripts/smoke-test.sh          # builds, starts on https://localhost with throwaway secrets,
+                               # checks sign-up, catalog, photos, webhooks, headers; tears down
+scripts/smoke-test.sh --keep   # same, but leaves it running to click around
 ```
 
-## Production deployment
+### Meta app setup (one time)
 
-The app ships with a multi-stage `Dockerfile` and a `docker-compose.yml` that runs the app
-alongside PostgreSQL, so it can be deployed on any host that runs Docker (a VPS, Render, Railway,
-Fly.io, AWS, etc.) without cloud lock-in.
+1. In the Meta developer dashboard, create an app and add the **Messenger** and **Instagram**
+   products (Instagram messaging via the Messenger Platform, i.e. Facebook Login - not
+   "Instagram Login"). Put its id and secret in `META_APP_ID` / `META_APP_SECRET`.
+2. Add `${BASE_URL}/api/auth/meta/callback` as a valid OAuth redirect URI under Facebook Login.
+3. Configure webhooks for both the **Page** and **Instagram** objects: callback URL
+   `${BASE_URL}/webhook`, verify token `WEBHOOK_VERIFY_TOKEN`, fields `messages`,
+   `messaging_postbacks` and `message_echoes` (echoes are how the app notices staff replying
+   from the Meta inbox). Each Page a shop connects is subscribed to the app automatically.
+4. Request **Advanced Access** via App Review for `pages_show_list`, `pages_messaging`,
+   `pages_manage_metadata`, `instagram_basic` and `instagram_manage_messages`, plus the
+   **Human Agent** feature if staff will reply more than 24 hours after a customer's last
+   message. Until approved, only people with a role on the app can connect a Page or chat with
+   the bot - enough for testing with your own accounts.
 
-1. Copy `.env.example` to `.env` and set **unique, non-default** values for at least:
-   `ENCRYPTION_SECRET_KEY`, `WEBHOOK_VERIFY_TOKEN`, `OAUTH_STATE_SECRET`, `ADMIN_USERNAME`,
-   `ADMIN_PASSWORD`, `CORS_ALLOWED_ORIGINS` (a specific origin, not `*`), and your real
-   `META_APP_ID`/`META_APP_SECRET`/`BASE_URL`.
-2. Set `SPRING_PROFILES_ACTIVE=prod` in `.env`. With this profile active, the app will **refuse
-   to start** if any of the settings above were left at their insecure development defaults -
-   this is intentional, to catch a missed env var before it reaches production.
-3. Run `docker compose up -d --build`.
-4. Put a reverse proxy or platform in front that terminates TLS (e.g. Caddy/nginx, or a PaaS with
-   automatic HTTPS). The admin endpoints use HTTP Basic auth, which is only safe over HTTPS.
-   The app trusts `X-Forwarded-For` only from private-network proxies (for rate limiting by real
-   client IP); if your proxy connects from a public IP, set
-   `SERVER_TOMCAT_REMOTEIP_INTERNAL_PROXIES` to a regex matching it.
+A shop's Instagram account must be a professional account linked to its Facebook Page, and the
+shop must enable **Allow access to messages** in the Instagram app's privacy settings.
 
-### Database roles
+## Running the platform
 
-The Postgres container creates three roles on first start (`docker/postgres/init`): the
-`postgres` superuser (init only), `chatbot_app` (owns the schema, used by the app) and `directus`
-(catalog tables only). Postgres is published on `127.0.0.1:5432` only.
+### Onboarding shops
 
-**Upgrading an existing database volume** created before these roles existed: the init script
-only runs on an empty volume, so run the one-time upgrade script, then set
-`APP_DB_PASSWORD` / `DIRECTUS_DB_PASSWORD` / `POSTGRES_SUPERUSER_PASSWORD` in `.env` (the
-superuser password is whatever the volume was created with) and restart:
+**Self-serve (default):** a shop owner signs up at `https://your-domain/signup`, then in
+**Тохиргоо → Холболт** connects their Facebook Page (and linked Instagram) and optionally their
+QPay merchant account, and adds categories and products under **Бараа**. The overview page
+shows a checklist of these steps.
+
+**Admin-onboarded** (`SIGNUP_ENABLED=false`, or shops you set up for customers): register the
+shop through the API, then send the owner a one-time link to set their password:
 
 ```bash
-docker compose stop app directus
-docker compose exec -T postgres psql -U postgres -d chatbot_saas -v ON_ERROR_STOP=1 \
-  -v app_password='<APP_DB_PASSWORD>' -v directus_password='<DIRECTUS_DB_PASSWORD>' \
-  < docker/postgres/upgrade-existing-volume.sql
-docker compose up -d
+curl -u "$ADMIN_USERNAME:$ADMIN_PASSWORD" -H 'Content-Type: application/json' \
+  -d '{"email":"owner@shop.mn","name":"Owner name"}' \
+  https://your-domain/api/admin/businesses/{id}/owner-invite
 ```
+
+Owners invite their own staff from **Тохиргоо → Хэрэглэгчид**. There is no email sending: invite
+and password-reset links are shown to whoever creates them, to pass on (chat, SMS...). A staff
+member who forgot their password gets a new link from the owner; an owner locked out gets one
+from you with the same `owner-invite` call.
+
+### Admin runbook (manual billing)
+
+Billing is handled outside the app; the admin API is the on/off switch per shop:
+
+```bash
+A="-u $ADMIN_USERNAME:$ADMIN_PASSWORD"
+curl $A https://your-domain/api/admin/businesses                              # list shops
+curl $A -X POST https://your-domain/api/admin/businesses/{id}/suspend         # e.g. non-payment
+curl $A -X POST https://your-domain/api/admin/businesses/{id}/activate        # once paid
+curl $A https://your-domain/api/admin/businesses/{id}/meta-connect-url        # Meta connect link
+curl $A -X POST https://your-domain/api/admin/businesses/{id}/rotate-api-key  # leaked API key
+```
+
+A suspended shop's dashboard logins and API key stop working at once, and the bot ignores its
+customers' messages until it is reactivated.
 
 ### Backups
+
+Everything - orders, chats, the catalog and product photos - is in PostgreSQL:
 
 ```bash
 # Nightly dump (e.g. from cron on the host); keep copies off the server
@@ -112,47 +132,100 @@ docker compose exec -T postgres pg_dump -U postgres -Fc chatbot_saas > backup-$(
 docker compose exec -T postgres pg_restore -U postgres -d chatbot_saas --clean < backup.dump
 ```
 
-Product photos live in the `directus_uploads` volume - back that up too.
+Also keep `.env` somewhere safe: without the same `ENCRYPTION_SECRET_KEY` the stored Meta Page
+tokens and QPay passwords can't be decrypted (shops would have to reconnect).
+
+### Upgrading
+
+```bash
+git pull
+docker compose up -d --build
+```
+
+New database migrations are applied on startup. Dashboard sessions are stored in the database,
+so signed-in users stay signed in across the restart.
 
 ### Operations notes
 
-- Logs default to `INFO` (`LOG_LEVEL`); `DEBUG` includes customer IDs and message metadata.
+- Logs: `docker compose logs -f app`. Default level `INFO` (`LOG_LEVEL`); `DEBUG` includes
+  customer IDs and message metadata. Unexpected errors are logged with a stack trace and
+  answered with a generic message.
+- `/actuator/health` is the only public actuator endpoint and backs the container healthcheck.
 - On shutdown the app stops accepting requests and gives in-flight chat messages up to 30s to
   finish, so redeploys don't cut conversations off mid-reply.
-- `/actuator/health` is the only public actuator endpoint and backs the container healthcheck.
-- Rate limits (per client IP, per minute): registration 10, webhook 600, admin endpoints 30.
+- Rate limits per client IP, per minute: registration 10, sign-in 20, webhook 600, admin 30;
+  plus a 15-minute lock after 10 wrong passwords for one account. They are in-memory, so they
+  assume a single app instance.
+- Postgres is published on `127.0.0.1:5432` only and the app on `127.0.0.1:8080`; the public
+  only reaches Caddy.
 
-### Required environment variables
+### Database roles
+
+The Postgres container creates the roles on first start (`docker/postgres/init`): the
+`postgres` superuser (init only) and `chatbot_app` (owns the schema, used by the app).
+
+**Upgrading an existing database volume** created before these roles existed: the init script
+only runs on an empty volume, so run the one-time upgrade script, then set `APP_DB_PASSWORD`
+and `POSTGRES_SUPERUSER_PASSWORD` in `.env` (the superuser password is whatever the volume was
+created with) and restart:
+
+```bash
+docker compose stop app
+docker compose exec -T postgres psql -U postgres -d chatbot_saas -v ON_ERROR_STOP=1 \
+  -v app_password='<APP_DB_PASSWORD>' -v directus_password='<any value>' \
+  < docker/postgres/upgrade-existing-volume.sql
+docker compose up -d
+```
+
+## Configuration reference
+
+All settings are environment variables (see `.env.example` for a commented template).
 
 | Variable | Purpose |
 |---|---|
-| `DATABASE_URL`, `DATABASE_USERNAME`, `DATABASE_PASSWORD` | PostgreSQL connection |
-| `META_APP_ID`, `META_APP_SECRET` | Meta app credentials |
-| `BASE_URL` | Public URL used to build the OAuth redirect URI |
+| `DOMAIN` | Domain Caddy serves and gets a certificate for (`localhost` for local tries) |
+| `BASE_URL` | Public URL (`https://...`): OAuth redirect, invite links, QPay callbacks, photo URLs |
+| `SPRING_PROFILES_ACTIVE` | `prod` (compose default): startup secrets check, HTTPS-only cookies |
+| `POSTGRES_SUPERUSER_PASSWORD`, `APP_DB_PASSWORD` | Database roles (compose) |
+| `DATABASE_URL`, `DATABASE_USERNAME`, `DATABASE_PASSWORD` | Database connection (outside compose) |
+| `ENCRYPTION_SECRET_KEY` | AES-GCM key (16/24/32 bytes) for Meta tokens and QPay passwords at rest - never change it |
+| `OAUTH_STATE_SECRET` | Signs Meta connect links and QPay callback URLs; must differ from the encryption key |
+| `ADMIN_USERNAME`, `ADMIN_PASSWORD` | HTTP Basic credentials for `/api/admin/**` |
+| `META_APP_ID`, `META_APP_SECRET` | Meta app credentials (the secret also verifies webhook signatures) |
+| `WEBHOOK_VERIFY_TOKEN` | Meta's webhook subscription handshake |
 | `META_GRAPH_API_VERSION` | Graph API version (default `v23.0`) - bump before Meta retires it |
-| `OAUTH_STATE_TTL_MINUTES` | How long a connect link stays valid (default 60) |
-| `CHATBOT_HANDOFF_TIMEOUT_HOURS` | Hours the bot stays paused for a customer after a handoff request or staff reply (default 12) |
+| `OAUTH_STATE_TTL_MINUTES` | How long a Meta connect link stays valid (default 60) |
+| `QPAY_API_URL` | QPay merchant API. Production `https://merchant.qpay.mn/v2`; the sandbox is refused under `prod` |
+| `QPAY_RECONCILE_WINDOW_HOURS` | Unpaid invoices younger than this are re-checked every 5 min (default 3) |
+| `SIGNUP_ENABLED` | Self-serve shop sign-up (dashboard and `POST /api/businesses/register`), default `true` |
+| `SESSION_TIMEOUT` | Idle time before a dashboard session expires (default `12h`) |
+| `AUTH_INVITE_TTL_HOURS`, `AUTH_RESET_TTL_HOURS` | Invite / password-reset link lifetime (72 / 24) |
 | `CHATBOT_CONVERSATION_TIMEOUT_HOURS` | Idle hours before an unfinished order conversation is abandoned (default 24) |
-| `WEBHOOK_VERIFY_TOKEN` | Verifies Meta's webhook subscription handshake |
-| `ENCRYPTION_SECRET_KEY` | AES-GCM key (16/24/32 bytes) encrypting stored Meta access tokens |
-| `OAUTH_STATE_SECRET` | Signs the OAuth `state` parameter - must differ from `ENCRYPTION_SECRET_KEY` |
-| `ADMIN_USERNAME`, `ADMIN_PASSWORD` | Credentials for the `/api/admin/**` operator endpoints |
-| `CORS_ALLOWED_ORIGINS` | Allowed browser origins (never `*` in production) |
-| `QPAY_API_URL` | QPay merchant API (default: sandbox). Production must use `https://merchant.qpay.mn/v2` |
-| `QPAY_RECONCILE_WINDOW_HOURS` | Unpaid invoices younger than this are re-checked with QPay every 5 min in case a callback was missed (default 3) |
-| `SPRING_PROFILES_ACTIVE` | Set to `prod` in production to enable the startup secrets check |
+| `CHATBOT_HANDOFF_TIMEOUT_HOURS` | Hours the bot stays paused after a handoff request or staff reply (default 12) |
+| `CORS_ALLOWED_ORIGINS` | Other browser apps allowed to call the API (never `*` in production) |
+| `TZ` | Time zone for timestamps and "today" (default `Asia/Ulaanbaatar`) |
+| `LOG_LEVEL`, `FORWARD_HEADERS_STRATEGY`, `APP_PORT` | Operations (see `.env.example`) |
 
-### CI
+## Security model
 
-Integration tests run against a real embedded PostgreSQL 15 (zonky embedded-postgres - no
-Docker needed; binaries are fetched from Maven Central on first run), with the same migrations
-as production. Run tests on JDK 17, as CI does: on much newer JDKs (e.g. 26) Mockito can't mock
-classes yet.
+- **Dashboard users** sign in with email + password (BCrypt). Sessions are HttpOnly, Secure,
+  SameSite=Lax cookies stored in PostgreSQL (Spring Session) and re-checked on every request,
+  so deactivating a user, suspending a shop or changing a password ends sessions immediately.
+  Cookie-authenticated writes require a CSRF token (cookie-to-header). `OWNER`s manage
+  settings, connections and staff; `STAFF` handle orders, catalog and chats.
+- **Integrations** use a per-shop API key (`X-API-Key`, SHA-256 hashed at rest, shown once).
+- **Tenant isolation:** every shop-scoped endpoint ties the requested shop to the caller.
+- **Admin** endpoints use HTTP Basic auth (`ADMIN_USERNAME` / `ADMIN_PASSWORD`) - HTTPS only.
+- **Public endpoints** protect themselves: the Meta webhook by HMAC signature, the Meta
+  callback by a signed, expiring `state`, the QPay callback by an HMAC token plus confirming
+  every payment with QPay, product photos by random ids.
+- **Secrets at rest:** Meta Page tokens and QPay passwords are AES-GCM encrypted.
+- **Shop-supplied URLs:** notification webhooks must be public `https://` addresses; private,
+  loopback and metadata addresses are refused when saved and again when connecting.
+- **Headers:** a strict Content-Security-Policy (the dashboard loads only its own files),
+  `X-Frame-Options: DENY`, HSTS, `nosniff`, a strict referrer policy.
 
-`.github/workflows/ci.yml` runs `mvn -B verify` (build + full test suite) on every push/PR to
-`main`.
-
-## Chatbot behavior notes
+## How the chatbot behaves
 
 - Customers can type **цэс**, **эхлэх**, **дахин**, **menu**, **start** or **restart** at any point
   to go back to the category menu.
@@ -160,117 +233,73 @@ classes yet.
   Meta webhook redeliveries are recognized by message ID and skipped.
 - If the shop deactivates a product mid-conversation, the customer is told it's sold out and
   sent back to the menu instead of the order being placed.
+- Product photos (uploaded in the dashboard) are sent just before the product menu.
 
 ### Human handoff
 
 A shop's staff can take a conversation over from the bot, per customer:
 
 - **Customer asks for a person** by typing **оператор**, **ажилтан**, **хүн**, **human**,
-  **agent** or **operator**. The bot acknowledges, goes quiet for that customer, and the shop's
-  notification webhook gets a `HANDOFF_REQUESTED` event.
-- **Staff reply from the shop's normal Meta inbox** (Meta Business Suite / the Page inbox /
-  the Instagram app). The app sees the echo of that message, records it in the transcript as
-  an `AGENT` message and pauses the bot so it doesn't talk over them. No extra tool needed.
-- **Or staff use the API** (`/api/businesses/{id}/inbox` and `/customers/{id}/messages`,
-  `/pause-bot`, `/resume-bot` - see API.md).
-- The bot takes over again when staff call `resume-bot`, when the customer types a menu keyword
-  (**цэс**, **menu**, ...), or after `CHATBOT_HANDOFF_TIMEOUT_HOURS` (default 12) without staff
-  activity.
+  **agent** or **operator**. The bot acknowledges and goes quiet for that customer; the
+  dashboard's **Чат** tab shows a waiting badge, and the notification webhook gets a
+  `HANDOFF_REQUESTED` event.
+- **Staff reply from the dashboard** (**Чат**) or **from the shop's normal Meta inbox** (Meta
+  Business Suite / the Page inbox / the Instagram app). The app sees the echo of an inbox
+  reply, records it in the transcript and pauses the bot so it doesn't talk over them.
+- The bot takes over again when staff press **Ботод шилжүүлэх** (`resume-bot`), when the
+  customer types a menu keyword, or after `CHATBOT_HANDOFF_TIMEOUT_HOURS` without staff activity.
 
 ### QPay payments
 
 Each shop is paid into **its own** QPay merchant account; the platform holds no QPay account of
 its own and never touches the money.
 
-1. The shop gets a merchant account from QPay (username, password and invoice code).
-2. They (or you, with their API key) connect it: `PUT /api/businesses/{id}/payments/qpay` - the
+1. The shop gets a merchant account from QPay (username, password and invoice code) and
+   enters it in **Тохиргоо → Холболт** (or `PUT /api/businesses/{id}/payments/qpay`). The
    credentials are verified with QPay before being stored; the password is encrypted at rest.
-3. From then on, when the bot places an order it creates a QPay invoice for the order total and
-   ends the confirmation with the QPay link (QR code + a button per bank app). If QPay is down
-   the order is still saved and the customer gets the usual "we'll contact you" message.
-4. QPay calls `${BASE_URL}/webhook/qpay/{orderId}?token=...` when paid. The app never trusts
+2. When the bot places an order it creates a QPay invoice for the order total and ends the
+   confirmation with the QPay link (QR code + a button per bank app). If QPay is down the order
+   is still saved and the customer gets the usual "we'll contact you" message.
+3. QPay calls `${BASE_URL}/webhook/qpay/{orderId}?token=...` when paid. The app never trusts
    the callback itself - it asks QPay (`payment/check`) and records the payment only if the
    paid amount covers the order total, then thanks the customer in chat and sends the shop a
    `PAYMENT_RECEIVED` notification. Missed callbacks are caught by a reconcile every 5 minutes
-   (for `QPAY_RECONCILE_WINDOW_HOURS`), or on demand with `POST .../orders/{id}/payment/check`.
+   (for `QPAY_RECONCILE_WINDOW_HOURS`), or on demand with **Төлбөр шалгах** on the order.
 
-`paymentStatus` (`NOT_REQUESTED`/`PENDING`/`PAID`) is separate from the order's fulfilment
-`status`, which stays the shop's to change. Cancelling an unpaid order withdraws its invoice;
+The payment status (`NOT_REQUESTED`/`PENDING`/`PAID`) is separate from the order's fulfilment
+status, which stays the shop's to change. Cancelling an unpaid order withdraws its invoice;
 refunds of paid orders are done by the shop in QPay.
 
-**Testing without a merchant account:** the default `QPAY_API_URL` is QPay's sandbox, which
-accepts the public test merchant `TEST_MERCHANT` / `123456` with invoice code `TEST_INVOICE`.
-Sandbox links can't take real payments. `BASE_URL` must be publicly reachable (e.g. via a
-tunnel) for QPay's callback to arrive; otherwise use the check endpoint. Under the `prod`
-profile startup refuses a sandbox `QPAY_API_URL`.
+**Testing without a merchant account:** QPay's sandbox (`https://merchant-sandbox.qpay.mn/v2`,
+the default outside the `prod` profile) accepts the public test merchant `TEST_MERCHANT` /
+`123456` with invoice code `TEST_INVOICE`. Sandbox links can't take real payments, and
+`BASE_URL` must be publicly reachable (e.g. via a tunnel) for its callback to arrive.
 
-## Meta app setup (one time)
+## Development
 
-1. In the Meta developer dashboard, add the **Messenger** and **Instagram** products (Instagram
-   messaging via the Messenger Platform, i.e. Facebook Login - not "Instagram Login").
-2. Add `${BASE_URL}/api/auth/meta/callback` as a valid OAuth redirect URI under Facebook Login.
-3. Configure webhooks for both the **Page** and **Instagram** objects: callback URL
-   `${BASE_URL}/webhook`, verify token `WEBHOOK_VERIFY_TOKEN`, fields `messages`,
-   `messaging_postbacks` and `message_echoes` (echoes are how the app notices staff replying
-   from the Meta inbox). Each connected Page is subscribed to the app automatically; Pages
-   connected before `message_echoes` was added need to reconnect once (send a new connect link).
-4. Request **Advanced Access** via App Review for `pages_show_list`, `pages_messaging`,
-   `pages_manage_metadata`, `instagram_basic` and `instagram_manage_messages`, plus the
-   **Human Agent** feature if staff will reply more than 24 hours after a customer's last
-   message. Until approved, only people with a role on the app can connect a Page or chat with
-   the bot.
+Requirements: JDK 17, Maven 3.9, Node 22, and PostgreSQL 14+ for running the app locally.
 
-A shop's Instagram account must be a professional account linked to its Facebook Page, and the
-shop must enable **Allow access to messages** in the Instagram app's privacy settings.
+```bash
+createdb chatbot_saas
+mvn spring-boot:run                  # API on http://localhost:8080 (sandbox QPay, dev secrets)
+cd frontend && npm install && npm run dev   # dashboard on http://localhost:5173, proxied to :8080
+```
 
-## Self-serve catalog management (Directus)
+`npm run build` puts the dashboard in `frontend/dist`, which `mvn package` bundles into the jar
+(the Dockerfile does both). Without it the jar still works, just without the dashboard pages.
 
-Shop owners can add their own products - name, price, description, and a **photo** - through
-[Directus](https://directus.io), an open-source admin UI, instead of you managing their catalog
-by hand via the API. `docker-compose.yml` already runs Directus as a second service pointed at
-the same Postgres database the app uses, so no extra database or sync step is needed: whatever a
-shop owner saves in Directus is exactly what the chatbot reads on the next message, including the
-existing "in stock" toggle (the products' `isActive` field).
+**Tests:** `mvn verify` runs the backend suite - integration tests use a real embedded
+PostgreSQL 15 (zonky, no Docker needed) with the same migrations as production. Use JDK 17: on
+much newer JDKs (e.g. 26) Mockito can't mock classes yet. `cd frontend && npm test` runs the
+dashboard's unit tests. CI (`.github/workflows/ci.yml`) runs both and builds the dashboard into
+the jar on every push/PR to `main`.
 
-Directus connects as its own restricted `directus` database role: it can read, create and update
-`products` and `categories` only. It cannot see `businesses` (Meta tokens, API key hashes),
-customers, orders or messages, cannot delete products (switch `is_active` off instead - orders
-reference them), and cannot alter the app's tables. The grants live in
-`src/main/resources/db/postgres/R__directus_grants.sql`.
+### Directus (legacy)
 
-This is a one-time setup per deployment (not per shop) - do it once after your first
-`docker compose up -d --build`:
-
-1. Open Directus at `DIRECTUS_PUBLIC_URL` (default `http://localhost:8055`) and log in with
-   `DIRECTUS_ADMIN_EMAIL` / `DIRECTUS_ADMIN_PASSWORD`.
-2. **Settings → Data Model**, and add `categories` and `products` as collections **from the
-   existing tables** (Directus will detect them since it's the same database). `businesses` is
-   intentionally not visible to Directus.
-3. On the `products` collection, find the existing `image_file_id` column and click
-   **Manage Field** (not "Create Field" - that would try to add a duplicate column) and set its
-   interface to **Image**. This turns it into a real drag-and-drop upload field backed by
-   Directus's own file storage.
-4. **Settings → Data Model → Directus Users**, add a custom field `business_id` (type Integer).
-   This is what scopes each shop owner's login to only their own products.
-5. Create a **Shop Owner** role with an access policy granting, on both `products` and
-   `categories`:
-   - **Read** and **Update**, with item permission `business_id` *equals*
-     `$CURRENT_USER.business_id` (which rows they can see/edit);
-   - **Create** and **Update**, with field validation `business_id` *equals*
-     `$CURRENT_USER.business_id` and a field preset `business_id` = `$CURRENT_USER.business_id`
-     (what they're allowed to save).
-
-   Both halves matter: the item filter alone doesn't stop a shop owner from creating a product
-   with, or editing a product to, another shop's `business_id`. Also hide `business_id` in the
-   role's field permissions so it isn't editable at all.
-6. **Settings → Files → (product images folder) → Permissions**, and give the **Public** role
-   read access to it. Meta's servers fetch the image URL directly from the open internet with no
-   auth, so the images themselves must be publicly readable (this does not expose anything else
-   in Directus).
-7. For each shop, create one Directus user with the **Shop Owner** role and their `business_id`
-   set, and send them the Directus URL + their login. That's their entire "add my own products"
-   experience - no app install, no API key needed on their end.
-
-The chatbot resolves each product's photo as `${DIRECTUS_PUBLIC_URL}/assets/{image_file_id}` and
-sends it as an image message immediately before the existing product menu, so this requires no
-change to how customers interact with the bot.
+Before the dashboard existed, shops edited their catalog in [Directus](https://directus.io).
+It is no longer needed. Deployments that still want it can run it with
+`docker compose --profile directus up -d` after setting the `DIRECTUS_*` variables in `.env`
+(its database role only gets `SELECT/INSERT/UPDATE` on `products` and `categories`, see
+`src/main/resources/db/postgres/R__directus_grants.sql`). Set `DIRECTUS_PUBLIC_URL` if products
+still have photos uploaded through Directus, so their URLs keep resolving; photos uploaded in
+the dashboard are stored in the database and served at `/media/{id}`.

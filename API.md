@@ -47,12 +47,18 @@ All under `/api/businesses/{businessId}/staff`.
 
 You can't demote, deactivate or delete yourself, or leave the shop without an active owner.
 
+Errors are JSON `{"error": "...", "status": N}`. Malformed input is `400`, a value already taken
+(e.g. another shop's email) `409`, and unexpected failures `500` with a generic message (details
+are only in the server log).
+
 ## Businesses
 - `POST /api/businesses/register` - Register a new business (**Public**). Returns the business
   plus a one-time `apiKey` - store it now, it cannot be retrieved again.
 - `GET /api/businesses/{id}` - Get business by ID (must be your own `id`)
 - `PUT /api/businesses/{id}` - Update business (must be your own `id`)
-- `POST /api/businesses/{id}/notifications/webhook-url` - Set the order-notification webhook URL
+- `POST /api/businesses/{id}/notifications/webhook-url` `{"webhookUrl"}` - Set (or clear, with
+  an empty value) the notification webhook URL (owner only). Must be a public `https://` URL;
+  private, loopback and cloud-metadata addresses are refused (`400`).
 - `POST /api/businesses/{id}/api-key` - Issue a new API key (owner only). Returned once; the old
   key stops working.
 

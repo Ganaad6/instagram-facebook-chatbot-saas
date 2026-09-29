@@ -32,14 +32,15 @@ services:
       postgres:
         condition: service_healthy
     ports:
-      - "${PORT:-8080}:8080"
+      # Localhost only: the public reaches the app through Caddy (HTTPS) below
+      - "127.0.0.1:${APP_PORT:-8080}:8080"
     environment:
       DATABASE_URL: jdbc:postgresql://postgres:5432/chatbot_saas
       DATABASE_USERNAME: chatbot_app
       DATABASE_PASSWORD: ${APP_DB_PASSWORD:?set APP_DB_PASSWORD in .env}
       META_APP_ID: ${META_APP_ID}
       META_APP_SECRET: ${META_APP_SECRET}
-      BASE_URL: ${BASE_URL:-http://localhost:8080}
+      BASE_URL: ${BASE_URL:?set BASE_URL in .env (https://your-domain)}
       WEBHOOK_VERIFY_TOKEN: ${WEBHOOK_VERIFY_TOKEN}
       META_GRAPH_API_VERSION: ${META_GRAPH_API_VERSION:-v23.0}
       OAUTH_STATE_TTL_MINUTES: ${OAUTH_STATE_TTL_MINUTES:-60}
@@ -51,8 +52,15 @@ services:
       ADMIN_PASSWORD: ${ADMIN_PASSWORD}
       CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS}
       PORT: 8080
-      SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-}
+      SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-prod}
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      FORWARD_HEADERS_STRATEGY: ${FORWARD_HEADERS_STRATEGY:-native}
+      TZ: ${TZ:-Asia/Ulaanbaatar}
+      SIGNUP_ENABLED: ${SIGNUP_ENABLED:-true}
+      SESSION_TIMEOUT: ${SESSION_TIMEOUT:-12h}
+      AUTH_INVITE_TTL_HOURS: ${AUTH_INVITE_TTL_HOURS:-72}
+      AUTH_RESET_TTL_HOURS: ${AUTH_RESET_TTL_HOURS:-24}
+      QPAY_RECONCILE_WINDOW_HOURS: ${QPAY_RECONCILE_WINDOW_HOURS:-3}
       # Only for product photos uploaded through Directus before the dashboard existed
       DIRECTUS_PUBLIC_URL: ${DIRECTUS_PUBLIC_URL:-}
       QPAY_API_URL: ${QPAY_API_URL:-https://merchant-sandbox.qpay.mn/v2}
@@ -62,6 +70,25 @@ services:
       timeout: 5s
       start_period: 60s
       retries: 5
+
+  # HTTPS reverse proxy with automatic Let's Encrypt certificates - see docker/caddy/Caddyfile
+  caddy:
+    image: caddy:2-alpine
+    container_name: chatbot_saas_caddy
+    restart: unless-stopped
+    depends_on:
+      app:
+        condition: service_healthy
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    environment:
+      DOMAIN: ${DOMAIN:?set DOMAIN in .env (your domain, or localhost to try it locally)}
+    volumes:
+      - ./docker/caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
 
   # Legacy, optional: the Directus catalog admin used before the dashboard. Shops now manage
   # products and photos in the dashboard, so this only runs with `--profile directus` - for
@@ -95,4 +122,6 @@ services:
 
 volumes:
   chatbot_saas_pgdata:
+  caddy_data:
+  caddy_config:
   directus_uploads:

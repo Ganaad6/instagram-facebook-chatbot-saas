@@ -22,6 +22,8 @@ public class SecurityPropertiesValidator {
     private static final String INSECURE_WEBHOOK_TOKEN = "verify_token";
     private static final String INSECURE_ADMIN_PASSWORD = "change_me_before_deploying";
     private static final String INSECURE_DATABASE_PASSWORD = "password";
+    /** Values in .env.example that must be replaced; a copied template must not boot. */
+    private static final List<String> TEMPLATE_PLACEHOLDERS = List.of("set_a_", "set_32_", "your_", "change_me");
 
     @Value("${encryption.secret-key:}")
     private String encryptionSecretKey;
@@ -53,29 +55,35 @@ public class SecurityPropertiesValidator {
     @Value("${qpay.api-url:}")
     private String qpayApiUrl;
 
+    private static boolean isPlaceholder(String value) {
+        String lower = value.toLowerCase();
+        return TEMPLATE_PLACEHOLDERS.stream().anyMatch(lower::startsWith);
+    }
+
     @PostConstruct
     public void validate() {
         List<String> problems = new ArrayList<>();
 
-        if (encryptionSecretKey.isBlank() || encryptionSecretKey.equals(INSECURE_ENCRYPTION_KEY)) {
+        if (encryptionSecretKey.isBlank() || encryptionSecretKey.equals(INSECURE_ENCRYPTION_KEY) || isPlaceholder(encryptionSecretKey)) {
             problems.add("ENCRYPTION_SECRET_KEY must be set to a unique 16/24/32-byte value");
         }
-        if (webhookVerifyToken.isBlank() || webhookVerifyToken.equals(INSECURE_WEBHOOK_TOKEN)) {
+        if (webhookVerifyToken.isBlank() || webhookVerifyToken.equals(INSECURE_WEBHOOK_TOKEN) || isPlaceholder(webhookVerifyToken)) {
             problems.add("WEBHOOK_VERIFY_TOKEN must be set to a unique value");
         }
-        if (oauthStateSecret.isBlank() || oauthStateSecret.equals(INSECURE_ENCRYPTION_KEY)) {
+        if (oauthStateSecret.isBlank() || oauthStateSecret.equals(INSECURE_ENCRYPTION_KEY) || isPlaceholder(oauthStateSecret)
+                || oauthStateSecret.equals(encryptionSecretKey)) {
             problems.add("OAUTH_STATE_SECRET must be set to a unique value, distinct from ENCRYPTION_SECRET_KEY");
         }
-        if (adminPassword.isBlank() || adminPassword.equals(INSECURE_ADMIN_PASSWORD)) {
+        if (adminPassword.isBlank() || adminPassword.equals(INSECURE_ADMIN_PASSWORD) || isPlaceholder(adminPassword)) {
             problems.add("ADMIN_PASSWORD must be set to a strong, unique value");
         }
         if ("*".equals(corsAllowedOrigins.trim())) {
             problems.add("CORS_ALLOWED_ORIGINS must not be '*' in production");
         }
-        if (databasePassword.isBlank() || databasePassword.equals(INSECURE_DATABASE_PASSWORD)) {
+        if (databasePassword.isBlank() || databasePassword.equals(INSECURE_DATABASE_PASSWORD) || isPlaceholder(databasePassword)) {
             problems.add("DATABASE_PASSWORD must be set to a strong, unique value");
         }
-        if (metaAppId.isBlank() || metaAppSecret.isBlank()) {
+        if (metaAppId.isBlank() || metaAppSecret.isBlank() || isPlaceholder(metaAppId) || isPlaceholder(metaAppSecret)) {
             // Without the app secret every webhook fails signature verification
             problems.add("META_APP_ID and META_APP_SECRET must be set");
         }

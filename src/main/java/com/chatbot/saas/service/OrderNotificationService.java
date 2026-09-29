@@ -2,8 +2,8 @@ package com.chatbot.saas.service;
 
 import com.chatbot.saas.entity.Business;
 import com.chatbot.saas.entity.Order;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import org.springframework.web.reactive.function.client.WebClient;
@@ -16,11 +16,15 @@ import java.util.Map;
  * payments, and customers asking to talk to a person.
  */
 @Service
-@RequiredArgsConstructor
 @Slf4j
 public class OrderNotificationService {
 
-    private final WebClient.Builder webClientBuilder;
+    /** Only reaches public addresses; see NotificationClientConfig. */
+    private final WebClient notificationWebClient;
+
+    public OrderNotificationService(@Qualifier("notificationWebClient") WebClient notificationWebClient) {
+        this.notificationWebClient = notificationWebClient;
+    }
 
     @Async
     public void notifyNewOrder(Business business, Order order) {
@@ -93,7 +97,7 @@ public class OrderNotificationService {
     }
 
     private void post(String url, Map<String, Object> payload, String what) {
-        webClientBuilder.build()
+        notificationWebClient
                 .post()
                 .uri(url)
                 .bodyValue(payload)

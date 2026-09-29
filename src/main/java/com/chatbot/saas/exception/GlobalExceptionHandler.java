@@ -1,15 +1,23 @@
 package com.chatbot.saas.exception;
 
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.converter.HttpMessageNotReadableException;
+import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
+import org.springframework.web.multipart.MaxUploadSizeExceededException;
+import org.springframework.web.multipart.support.MissingServletRequestPartException;
 
 import java.util.HashMap;
 import java.util.Map;
 
 @RestControllerAdvice
+@Slf4j
 public class GlobalExceptionHandler {
 
     @ExceptionHandler({BusinessNotFoundException.class,
@@ -97,11 +105,34 @@ public class GlobalExceptionHandler {
         return ResponseEntity.status(status).body(body);
     }
 
+    /** Malformed JSON, a wrong enum value or id type, a missing parameter, a bad argument. */
+    @ExceptionHandler({HttpMessageNotReadableException.class, MethodArgumentTypeMismatchException.class,
+            MissingServletRequestParameterException.class, MissingServletRequestPartException.class,
+            IllegalArgumentException.class})
+    public ResponseEntity<Map<String, Object>> handleBadRequest(Exception ex) {
+        log.debug("Bad request: {}", ex.getMessage());
+        return error(HttpStatus.BAD_REQUEST, "Invalid request");
+    }
+
+    @ExceptionHandler(MaxUploadSizeExceededException.class)
+    public ResponseEntity<Map<String, Object>> handleUploadTooLarge(MaxUploadSizeExceededException ex) {
+        return error(HttpStatus.PAYLOAD_TOO_LARGE, "Зураг 5MB-аас ихгүй байх ёстой");
+    }
+
+    /** A unique value already taken, e.g. another shop's email or Page id. */
+    @ExceptionHandler(DataIntegrityViolationException.class)
+    public ResponseEntity<Map<String, Object>> handleConflict(DataIntegrityViolationException ex) {
+        log.info("Rejected conflicting write: {}", ex.getMostSpecificCause().getMessage());
+        return error(HttpStatus.CONFLICT, "This value is already in use");
+    }
+
+    /**
+     * Anything unexpected. The details go to the log only - exception messages can carry
+     * internals (SQL, class names, upstream responses) that callers shouldn't see.
+     */
     @ExceptionHandler(RuntimeException.class)
     public ResponseEntity<Map<String, Object>> handleRuntime(RuntimeException ex) {
-        Map<String, Object> body = new HashMap<>();
-        body.put("error", ex.getMessage());
-        body.put("status", 500);
-        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(body);
+        log.error("Unhandled error", ex);
+        return error(HttpStatus.INTERNAL_SERVER_ERROR, "Internal server error");
     }
 }

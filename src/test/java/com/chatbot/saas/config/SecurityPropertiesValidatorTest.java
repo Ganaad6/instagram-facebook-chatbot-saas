@@ -61,4 +61,24 @@ class SecurityPropertiesValidatorTest {
         IllegalStateException e = assertThrows(IllegalStateException.class, validator::validate);
         assertTrue(e.getMessage().contains("QPAY_API_URL"));
     }
+
+    @Test
+    void valuesCopiedFromTheEnvTemplateAreRejected() {
+        ReflectionTestUtils.setField(validator, "encryptionSecretKey", "set_32_unique_characters_here___");
+        ReflectionTestUtils.setField(validator, "adminPassword", "set_a_strong_unique_password_here");
+        ReflectionTestUtils.setField(validator, "metaAppId", "your_meta_app_id");
+
+        IllegalStateException e = assertThrows(IllegalStateException.class, validator::validate);
+        assertTrue(e.getMessage().contains("ENCRYPTION_SECRET_KEY"));
+        assertTrue(e.getMessage().contains("ADMIN_PASSWORD"));
+        assertTrue(e.getMessage().contains("META_APP_ID"));
+    }
+
+    @Test
+    void stateSecretMustDifferFromEncryptionKey() {
+        ReflectionTestUtils.setField(validator, "oauthStateSecret", "a-unique-32-byte-production-key!");
+
+        IllegalStateException e = assertThrows(IllegalStateException.class, validator::validate);
+        assertTrue(e.getMessage().contains("OAUTH_STATE_SECRET"));
+    }
 }
