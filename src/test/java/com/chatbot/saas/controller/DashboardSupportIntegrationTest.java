@@ -113,6 +113,24 @@ class DashboardSupportIntegrationTest {
     }
 
     @Test
+    void waitingFilterListsOnlyHandoffsLongestWaitingFirst() throws Exception {
+        customer("psid-idle-" + System.nanoTime(), LocalDateTime.now());
+        Customer recent = customer("psid-w1-" + System.nanoTime(), LocalDateTime.now());
+        recent.setHandoffRequestedAt(LocalDateTime.now().minusMinutes(1));
+        customerRepository.save(recent);
+        Customer longest = customer("psid-w2-" + System.nanoTime(), LocalDateTime.now().minusHours(2));
+        longest.setHandoffRequestedAt(LocalDateTime.now().minusHours(1));
+        customerRepository.save(longest);
+
+        // Page size 1: the filter must apply server-side, not only to the rows already loaded
+        JsonNode page = getJson("/api/businesses/" + businessId + "/chats?waiting=true&size=1");
+
+        assertEquals(2, page.get("totalElements").asInt());
+        assertEquals(longest.getId(), page.get("content").get(0).get("customerId").asLong());
+        assertEquals(3, getJson("/api/businesses/" + businessId + "/chats").get("totalElements").asInt());
+    }
+
+    @Test
     void chatOfAnotherShopIsNotFound() throws Exception {
         JsonNode other = json(mockMvc.perform(post("/api/businesses/register").contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(Map.of("name", "Other", "email", "o" + System.nanoTime() + "@example.com"))))

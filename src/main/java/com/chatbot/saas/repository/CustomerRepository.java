@@ -17,6 +17,7 @@ public interface CustomerRepository extends JpaRepository<Customer, Long> {
     Optional<Customer> findByBusinessIdAndFacebookUserId(Long businessId, String facebookUserId);
     List<Customer> findAllByBusinessId(Long businessId);
     org.springframework.data.domain.Page<Customer> findAllByBusinessId(Long businessId, org.springframework.data.domain.Pageable pageable);
+    org.springframework.data.domain.Page<Customer> findAllByBusinessIdAndHandoffRequestedAtIsNotNull(Long businessId, org.springframework.data.domain.Pageable pageable);
 
     /**
      * Row-locks the customer until the surrounding transaction ends. Used to process one

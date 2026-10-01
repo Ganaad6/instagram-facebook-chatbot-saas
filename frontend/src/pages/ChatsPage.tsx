@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type FormEvent } from 'react';
+import { useEffect, useRef, useState, type FormEvent, type UIEvent } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { api } from '../api';
 import { useMe } from '../auth';
@@ -20,10 +20,20 @@ export function ChatsPage() {
   const selectedId = id ? Number(id) : null;
   const [waitingOnly, setWaitingOnly] = useState(false);
   const [page, setPage] = useState(0);
-  const chats = useResource<Page<ChatSummary>>(`/api/businesses/${business.id}/chats?page=${page}&size=30`, 10000);
+  const base = `/api/businesses/${business.id}/chats`;
+  const chats = useResource<Page<ChatSummary>>(`${base}?page=${page}&size=30${waitingOnly ? '&waiting=true' : ''}`, 10000);
+  // Counted by the server: waiting customers can be on any page of the full list
+  const waiting = useResource<Page<ChatSummary>>(`${base}?waiting=true&size=1`, 10000);
+  const waitingCount = waiting.data?.totalElements ?? 0;
+  const list = chats.data?.content ?? [];
+  const totalPages = chats.data?.totalPages;
 
-  const list = (chats.data?.content ?? []).filter((c) => !waitingOnly || c.handoffRequestedAt);
-  const waitingCount = (chats.data?.content ?? []).filter((c) => c.handoffRequestedAt).length;
+  // Chats leave the waiting list once answered, which can empty the last page
+  useEffect(() => {
+    if (totalPages !== undefined && page > 0 && page >= totalPages) setPage(Math.max(totalPages - 1, 0));
+  }, [page, totalPages]);
+
+  const reloadAll = () => { void chats.reload(); void waiting.reload(); };
 
   return (
     <div className={`chats${selectedId ? ' has-selection' : ''}`}>
@@ -31,7 +41,7 @@ export function ChatsPage() {
         <div className="chat-list-head">
           <h1>Чат</h1>
           <label className="toggle small">
-            <input type="checkbox" checked={waitingOnly} onChange={(e) => setWaitingOnly(e.target.checked)} />
+            <input type="checkbox" checked={waitingOnly} onChange={(e) => { setWaitingOnly(e.target.checked); setPage(0); }} />
             <span>Хүн хүлээж буй{waitingCount > 0 && ` (${waitingCount})`}</span>
           </label>
         </div>
@@ -71,7 +81,7 @@ export function ChatsPage() {
       </section>
 
       <section className="chat-pane card flush">
-        {selectedId ? <Conversation key={selectedId} businessId={business.id} customerId={selectedId} onChanged={chats.reload} />
+        {selectedId ? <Conversation key={selectedId} businessId={business.id} customerId={selectedId} onChanged={reloadAll} />
           : <Empty title="Чат сонгоно уу">Хэрэглэгч “оператор” гэж бичвэл бот зогсоод таныг хүлээнэ.</Empty>}
       </section>
     </div>
@@ -87,9 +97,16 @@ function Conversation({ businessId, customerId, onChanged }: { businessId: numbe
   const [text, setText] = useState('');
   const [sending, setSending] = useState(false);
   const bottom = useRef<HTMLDivElement>(null);
+  // Follow new messages only while the view is at the bottom, so reading older ones isn't interrupted
+  const atBottom = useRef(true);
   const lastId = messages.data?.[messages.data.length - 1]?.id;
 
-  useEffect(() => { bottom.current?.scrollIntoView({ block: 'end' }); }, [lastId]);
+  useEffect(() => { if (atBottom.current) bottom.current?.scrollIntoView({ block: 'end' }); }, [lastId]);
+
+  const onScroll = (e: UIEvent<HTMLDivElement>) => {
+    const el = e.currentTarget;
+    atBottom.current = el.scrollHeight - el.scrollTop - el.clientHeight < 80;
+  };
 
   const refresh = async () => { await Promise.all([messages.reload(), chat.reload()]); onChanged(); };
 
@@ -100,6 +117,7 @@ function Conversation({ businessId, customerId, onChanged }: { businessId: numbe
     try {
       await api.post(`${base}/messages`, { text: text.trim() });
       setText('');
+      atBottom.current = true;
       await refresh();
     } catch (err) {
       toast(err instanceof Error ? err.message : String(err), 'error');
@@ -136,7 +154,7 @@ function Conversation({ businessId, customerId, onChanged }: { businessId: numbe
       {c?.handoffRequestedAt && (
         <div className="note warning">Хэрэглэгч {formatShort(c.handoffRequestedAt)}-д ажилтантай холбогдох хүсэлт гаргасан. Хариу бичнэ үү.</div>
       )}
-      <div className="messages">
+      <div className="messages" onScroll={onScroll}>
         {messages.error && <ErrorBox message={messages.error} />}
         {!messages.data && !messages.error && <Spinner />}
         {messages.data?.map((m) => (

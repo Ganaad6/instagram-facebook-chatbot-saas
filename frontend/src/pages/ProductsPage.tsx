@@ -204,6 +204,7 @@ function CategoryForm({ businessId, category, onClose, onSaved }: {
   const submit = async (e: FormEvent) => {
     e.preventDefault();
     setSaving(true);
+    setError(null);
     try {
       const body = { name: name.trim(), sortOrder: Number(sortOrder) || 0 };
       if (category) {

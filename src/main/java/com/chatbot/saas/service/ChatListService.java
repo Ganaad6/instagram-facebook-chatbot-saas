@@ -27,8 +27,13 @@ public class ChatListService {
     private final MessageRepository messageRepository;
     private final OrderRepository orderRepository;
 
+    /** With waitingOnly, just the customers waiting for a person, longest-waiting first. */
     @Transactional(readOnly = true)
-    public Page<ChatSummaryResponse> list(Long businessId, int page, int size) {
+    public Page<ChatSummaryResponse> list(Long businessId, boolean waitingOnly, int page, int size) {
+        if (waitingOnly) {
+            PageRequest pageable = PageRequest.of(page, size, Sort.by(Sort.Order.asc("handoffRequestedAt"), Sort.Order.asc("id")));
+            return customerRepository.findAllByBusinessIdAndHandoffRequestedAtIsNotNull(businessId, pageable).map(this::summarize);
+        }
         PageRequest pageable = PageRequest.of(page, size,
                 Sort.by(Sort.Order.desc("lastInteractionAt").nullsLast(), Sort.Order.desc("id")));
         return customerRepository.findAllByBusinessId(businessId, pageable).map(this::summarize);

@@ -60,14 +60,18 @@ export function Modal({ title, onClose, children, footer, wide }: {
   title: string; onClose: () => void; children: ReactNode; footer?: ReactNode; wide?: boolean;
 }) {
   const dialog = useRef<HTMLDivElement>(null);
+  // Callers pass a fresh onClose each render; reading it through a ref keeps the effect below
+  // to mount only, so a parent re-render (list polling) doesn't pull focus back into the dialog
+  const close = useRef(onClose);
+  close.current = onClose;
   useEffect(() => {
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') close.current(); };
     document.addEventListener('keydown', onKey);
     // Focus the first field so typing works at once; without fields, the dialog itself
     const first = dialog.current?.querySelector<HTMLElement>('.modal-body input, .modal-body select, .modal-body textarea');
     (first ?? dialog.current)?.focus();
     return () => document.removeEventListener('keydown', onKey);
-  }, [onClose]);
+  }, []);
   return (
     <div className="modal-backdrop" onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}>
       <div className={`modal${wide ? ' modal-wide' : ''}`} role="dialog" aria-modal="true" aria-label={title} ref={dialog} tabIndex={-1}>

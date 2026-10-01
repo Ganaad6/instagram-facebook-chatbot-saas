@@ -36,13 +36,17 @@ public class InboxController {
     private final TenantContext tenantContext;
     private final ChatListService chatListService;
 
-    /** Every customer conversation, most recently active first (the dashboard's chat list). */
+    /**
+     * Every customer conversation, most recently active first (the dashboard's chat list);
+     * with waiting=true, only customers waiting for a person, longest-waiting first.
+     */
     @GetMapping("/chats")
     public ResponseEntity<Page<ChatSummaryResponse>> chats(@PathVariable Long businessId,
+                                                           @RequestParam(defaultValue = "false") boolean waiting,
                                                            @RequestParam(defaultValue = "0") int page,
                                                            @RequestParam(defaultValue = "30") int size) {
         tenantContext.assertAccess(businessId);
-        return ResponseEntity.ok(chatListService.list(businessId, Math.max(page, 0), Math.min(Math.max(size, 1), 100)));
+        return ResponseEntity.ok(chatListService.list(businessId, waiting, Math.max(page, 0), Math.min(Math.max(size, 1), 100)));
     }
 
     @GetMapping("/chats/{customerId}")

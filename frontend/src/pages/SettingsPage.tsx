@@ -266,7 +266,10 @@ function Staff() {
                     {u.role === 'OWNER' ? 'Ажилтан болгох' : 'Эзэмшигч болгох'}
                   </button>
                   <button className="btn btn-small btn-danger-ghost" disabled={busy}
-                          onClick={() => void update(u, { active: !u.active }, u.active ? 'Эрх хаагдлаа' : 'Эрх нээгдлээ')}>
+                          onClick={() => {
+                            if (u.active && !window.confirm(`${u.name || u.email}-н эрхийг хаах уу? Тэр шууд системээс гарна.`)) return;
+                            void update(u, { active: !u.active }, u.active ? 'Эрх хаагдлаа' : 'Эрх нээгдлээ');
+                          }}>
                     {u.active ? 'Эрх хаах' : 'Эрх нээх'}
                   </button>
                 </div>
