@@ -6,16 +6,23 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 
 PROJECT=chatbot_smoke
-ENV_FILE=$(mktemp)
+# Kept in the project dir, not /tmp: snap-packaged Docker has a private /tmp and can't see it.
+# *.env is gitignored.
+ENV_FILE=$(mktemp -p "$PWD" smoke-XXXXXX.env)
 COOKIES=$(mktemp)
 KEEP=${1:-}
 BASE=https://localhost
 
 cleanup() {
-  if [ "$KEEP" != "--keep" ]; then
+  if [ "$KEEP" = "--keep" ]; then
+    # Compose needs the env file to stop the stack later, so it stays
+    echo "Still running at $BASE. Stop it with:"
+    echo "  docker compose -p $PROJECT --env-file $ENV_FILE down -v && rm $ENV_FILE"
+  else
     docker compose -p "$PROJECT" --env-file "$ENV_FILE" down -v --remove-orphans >/dev/null 2>&1 || true
+    rm -f "$ENV_FILE"
   fi
-  rm -f "$ENV_FILE" "$COOKIES"
+  rm -f "$COOKIES"
 }
 trap cleanup EXIT
 
