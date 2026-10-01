@@ -11,6 +11,7 @@ import org.springframework.web.reactive.function.client.WebClientRequestExceptio
 import org.springframework.web.reactive.function.client.WebClientResponseException;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.function.Supplier;
 
@@ -24,7 +25,8 @@ import java.util.function.Supplier;
 @Slf4j
 public class MetaGraphClient {
 
-    private static final String PAGE_FIELDS = "id,name,access_token,instagram_business_account{id}";
+    private static final String PAGE_FIELDS = "id,name,access_token";
+    private static final String INSTAGRAM_PAGE_FIELD = "instagram_business_account{id}";
 
     private final WebClient metaWebClient;
 
@@ -36,6 +38,9 @@ public class MetaGraphClient {
 
     @Value("${meta.oauth.redirect-uri}")
     private String redirectUri;
+
+    @Value("${meta.oauth.scopes}")
+    private String scopes;
 
     public record PageAccount(String pageId, String name, String pageAccessToken, String instagramAccountId) {
     }
@@ -84,7 +89,7 @@ public class MetaGraphClient {
                         // parsed as a URI variable
                         .queryParam("fields", "{fields}")
                         .queryParam("limit", 100)
-                        .build(PAGE_FIELDS))
+                        .build(pageFields()))
                 .headers(h -> h.setBearerAuth(longLivedUserToken))
                 .retrieve()
                 .bodyToMono(JsonNode.class)
@@ -103,6 +108,17 @@ public class MetaGraphClient {
                     instagramId));
         }
         return pages;
+    }
+
+    /**
+     * The linked Instagram account is only readable with instagram_basic; asking for it
+     * without that permission (a Messenger-only setup) could fail the whole Page listing.
+     */
+    private String pageFields() {
+        boolean instagram = Arrays.stream(scopes.split(","))
+                .map(String::trim)
+                .anyMatch("instagram_basic"::equals);
+        return instagram ? PAGE_FIELDS + "," + INSTAGRAM_PAGE_FIELD : PAGE_FIELDS;
     }
 
     /**

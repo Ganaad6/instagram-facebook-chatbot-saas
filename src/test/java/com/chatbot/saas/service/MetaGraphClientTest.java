@@ -42,6 +42,7 @@ class MetaGraphClientTest {
         ReflectionTestUtils.setField(client, "appId", "app");
         ReflectionTestUtils.setField(client, "appSecret", "secret");
         ReflectionTestUtils.setField(client, "redirectUri", "https://host/cb");
+        ReflectionTestUtils.setField(client, "scopes", "pages_show_list,pages_messaging,pages_manage_metadata,instagram_basic,instagram_manage_messages");
         return client;
     }
 
@@ -61,6 +62,18 @@ class MetaGraphClientTest {
         assertTrue(query.contains("fields=id,name,access_token,instagram_business_account{id}"), query);
         assertFalse(query.contains("user-token"), "token must not be in the URL");
         assertEquals("Bearer user-token", request.headers().getFirst(HttpHeaders.AUTHORIZATION));
+    }
+
+    @Test
+    void messengerOnlyScopesDoNotAskForInstagramAccount() {
+        MetaGraphClient client = client(HttpStatus.OK, """
+                {"data":[{"id":"p1","name":"Shop","access_token":"pt1"}]}""");
+        ReflectionTestUtils.setField(client, "scopes", "pages_show_list,pages_messaging,pages_manage_metadata");
+
+        assertEquals(List.of(new PageAccount("p1", "Shop", "pt1", null)), client.listPages("user-token"));
+        String query = URLDecoder.decode(requests.get(0).url().getRawQuery(), StandardCharsets.UTF_8);
+        assertTrue(query.contains("fields=id,name,access_token"), query);
+        assertFalse(query.contains("instagram_business_account"), query);
     }
 
     @Test

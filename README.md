@@ -195,6 +195,7 @@ All settings are environment variables (see `.env.example` for a commented templ
 | `WEBHOOK_VERIFY_TOKEN` | Meta's webhook subscription handshake |
 | `META_GRAPH_API_VERSION` | Graph API version (default `v23.0`) - bump before Meta retires it |
 | `OAUTH_STATE_TTL_MINUTES` | How long a Meta connect link stays valid (default 60) |
+| `META_OAUTH_SCOPES` | Permissions the Facebook connect asks for (default: Pages + Instagram messaging). Messenger only: `pages_show_list,pages_messaging,pages_manage_metadata` |
 | `QPAY_API_URL` | QPay merchant API. Production `https://merchant.qpay.mn/v2`; the sandbox is refused under `prod` |
 | `QPAY_RECONCILE_WINDOW_HOURS` | Unpaid invoices younger than this are re-checked every 5 min (default 3) |
 | `SIGNUP_ENABLED` | Self-serve shop sign-up (dashboard and `POST /api/businesses/register`), default `true` |
