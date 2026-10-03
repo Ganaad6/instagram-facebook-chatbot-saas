@@ -22,6 +22,8 @@ public class BusinessResponse {
     /** The connected QPay merchant login (never the password). */
     private String qpayUsername;
     private String notificationWebhookUrl;
+    private String welcomeMessage;
+    private String deliveryNote;
     private LocalDateTime createdAt;
 
     public static BusinessResponse from(Business business) {
@@ -36,6 +38,8 @@ public class BusinessResponse {
                 .qpayConnected(business.isQpayConnected())
                 .qpayUsername(business.getQpayUsername())
                 .notificationWebhookUrl(business.getNotificationWebhookUrl())
+                .welcomeMessage(business.getWelcomeMessage())
+                .deliveryNote(business.getDeliveryNote())
                 .createdAt(business.getCreatedAt())
                 .build();
     }

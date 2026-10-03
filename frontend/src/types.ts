@@ -25,6 +25,10 @@ export interface Business {
   qpayConnected: boolean;
   qpayUsername: string | null;
   notificationWebhookUrl: string | null;
+  /** The bot's greeting on the first menu; null = the built-in one. */
+  welcomeMessage: string | null;
+  /** Delivery terms in the order confirmation; null = none. */
+  deliveryNote: string | null;
   createdAt: string;
 }
 

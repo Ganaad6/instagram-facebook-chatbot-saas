@@ -14,6 +14,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import java.util.Optional;
 import java.util.Map;
 import java.util.UUID;
 import java.util.stream.Collectors;
@@ -95,6 +96,14 @@ public class ProductService {
 
     private ProductResponse toResponse(Product product) {
         return ProductResponse.from(product, mediaService.imageUrl(product.getImageFileId()));
+    }
+
+    /** The product if a customer can order it now: this shop's, active, in an active category. */
+    @Transactional(readOnly = true)
+    public Optional<Product> findOrderable(Long businessId, Long productId) {
+        return productRepository.findByIdAndBusinessId(productId, businessId)
+                .filter(p -> Boolean.TRUE.equals(p.getIsActive()))
+                .filter(p -> Boolean.TRUE.equals(p.getCategory().getIsActive()));
     }
 
     public Product findProductByIdAndBusiness(Long productId, Long businessId) {

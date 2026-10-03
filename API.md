@@ -119,6 +119,9 @@ Orders carry a snapshot of what was bought: `productName`, `unitPrice`, `quantit
 `GET /orders` takes optional `status` and `customerId` filters (plus `page`, `size`), newest
 first; `customerId` lists one chat customer's orders.
 
+`PUT /api/businesses/{id}` (owner) also takes the bot's `welcomeMessage` and `deliveryNote`
+(up to 500 characters each; blank clears, a missing field is left unchanged).
+
 The order-notification webhook sends `{"event": "NEW_ORDER", "orderId", "businessId",
 "product", "quantity", "unitPrice", "totalAmount", "customerName", "phone", "address", "status"}`.
 

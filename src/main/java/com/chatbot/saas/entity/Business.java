@@ -62,6 +62,14 @@ public class Business {
     @Column(name = "qpay_invoice_code")
     private String qpayInvoiceCode;
 
+    /** Greeting on the first menu of a conversation; null = the built-in one. */
+    @Column(name = "welcome_message", columnDefinition = "TEXT")
+    private String welcomeMessage;
+
+    /** Delivery terms added to the order confirmation; null = none. */
+    @Column(name = "delivery_note", columnDefinition = "TEXT")
+    private String deliveryNote;
+
     @Column(name = "created_at", nullable = false)
     private LocalDateTime createdAt;
 

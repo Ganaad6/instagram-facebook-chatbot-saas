@@ -11,6 +11,7 @@ import type { Business, IssuedLink, Role, StaffUser } from '../types';
 const TABS = [
   { id: 'connections', label: 'Холболт', ownerOnly: true },
   { id: 'shop', label: 'Дэлгүүр', ownerOnly: true },
+  { id: 'bot', label: 'Бот', ownerOnly: true },
   { id: 'staff', label: 'Хэрэглэгчид', ownerOnly: true },
   { id: 'integrations', label: 'Интеграц', ownerOnly: true },
   { id: 'password', label: 'Нууц үг', ownerOnly: false },
@@ -35,6 +36,7 @@ export function SettingsPage() {
         <>
           {tab === 'connections' && <Connections />}
           {tab === 'shop' && <ShopInfo />}
+          {tab === 'bot' && <BotTexts />}
           {tab === 'staff' && <Staff />}
           {tab === 'integrations' && <Integrations />}
           {tab === 'password' && <PasswordForm />}
@@ -179,6 +181,42 @@ function ShopInfo() {
       <form className="stack" onSubmit={save}>
         <Field label="Дэлгүүрийн нэр"><input required maxLength={255} value={name} onChange={(e) => setName(e.target.value)} /></Field>
         <Field label="Холбоо барих имэйл"><input required type="email" value={email} onChange={(e) => setEmail(e.target.value)} /></Field>
+        <div><button className="btn btn-primary" disabled={busy}>Хадгалах</button></div>
+      </form>
+    </Section>
+  );
+}
+
+const BOT_TEXT_LIMIT = 500;
+
+/** The shop's own words in the chat: the greeting and the delivery terms. */
+function BotTexts() {
+  const { business } = useMe();
+  const { refresh } = useAuth();
+  const { busy, run } = useAction();
+  const [welcome, setWelcome] = useState(business.welcomeMessage ?? '');
+  const [delivery, setDelivery] = useState(business.deliveryNote ?? '');
+  const defaultWelcome = `Сайн байна уу! 👋 ${business.name} — тавтай морил.`;
+
+  const save = async (e: FormEvent) => {
+    e.preventDefault();
+    // Empty strings clear the text on the server (back to the built-in greeting / no note)
+    if (await run(() => api.put<Business>(`/api/businesses/${business.id}`, { welcomeMessage: welcome, deliveryNote: delivery }), 'Хадгаллаа')) {
+      await refresh();
+    }
+  };
+
+  return (
+    <Section title="Ботын мессеж" description="Хэрэглэгчид бот юу гэж бичихийг өөрийн дэлгүүрт тааруулна.">
+      <form className="stack" onSubmit={save}>
+        <Field label="Мэндчилгээ" hint={<>Хэрэглэгч бичихэд эхний цэсний дээр гарна. Хоосон бол: “{defaultWelcome}”</>}>
+          <textarea rows={3} maxLength={BOT_TEXT_LIMIT} placeholder={defaultWelcome}
+                    value={welcome} onChange={(e) => setWelcome(e.target.value)} />
+        </Field>
+        <Field label="Хүргэлтийн мэдээлэл" hint="Захиалга баталгаажсаны дараах мессежид 🚚-тэй гарна. Хоосон бол гарахгүй.">
+          <textarea rows={3} maxLength={BOT_TEXT_LIMIT} placeholder="Жишээ нь: УБ дотор 1–2 хоногт хүргэнэ, хүргэлт 5,000₮. 100,000₮-өөс дээш үнэгүй."
+                    value={delivery} onChange={(e) => setDelivery(e.target.value)} />
+        </Field>
         <div><button className="btn btn-primary" disabled={busy}>Хадгалах</button></div>
       </form>
     </Section>

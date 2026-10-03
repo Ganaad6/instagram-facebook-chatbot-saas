@@ -81,7 +81,7 @@ class HandoffIntegrationTest {
         categoryRepository.save(Category.builder().business(business).name("Shoes").build());
 
         when(metaReplyService.sendText(anyString(), anyString(), anyString())).thenAnswer(inv -> "m_bot_" + mids.incrementAndGet());
-        when(metaReplyService.sendMenuMessage(anyString(), anyString(), anyString(), anyList(), anyString()))
+        when(metaReplyService.sendMenuMessage(anyString(), anyString(), anyList(), anyString()))
                 .thenAnswer(inv -> "m_bot_" + mids.incrementAndGet());
         when(metaReplyService.sendAgentText(anyString(), anyString(), anyBoolean(), anyString()))
                 .thenAnswer(inv -> "m_agent_" + mids.incrementAndGet());
@@ -109,7 +109,7 @@ class HandoffIntegrationTest {
     @Test
     void askingForAPersonPausesTheBotUntilTheCustomerAsksForTheMenu() throws Exception {
         customerSays("сайн уу");
-        verify(metaReplyService, times(1)).sendMenuMessage(eq(psid), anyString(), anyString(), anyList(), anyString());
+        verify(metaReplyService, times(1)).sendMenuMessage(eq(psid), anyString(), anyList(), anyString());
 
         customerSays("оператор");
         assertTrue(customer().isBotPaused(LocalDateTime.now()));
@@ -119,7 +119,7 @@ class HandoffIntegrationTest {
         customerSays("захиалга хэзээ ирэх вэ?");
         // Recorded for staff, but the bot said nothing more
         assertTrue(messages().stream().anyMatch(m -> m.getContent().equals("захиалга хэзээ ирэх вэ?")));
-        verify(metaReplyService, times(1)).sendMenuMessage(eq(psid), anyString(), anyString(), anyList(), anyString());
+        verify(metaReplyService, times(1)).sendMenuMessage(eq(psid), anyString(), anyList(), anyString());
 
         // Staff see the customer in the inbox
         String inbox = mockMvc.perform(get("/api/businesses/" + businessId + "/inbox").header("X-API-Key", apiKey))
@@ -128,7 +128,7 @@ class HandoffIntegrationTest {
 
         customerSays("цэс");
         assertFalse(customer().isBotPaused(LocalDateTime.now()));
-        verify(metaReplyService, times(2)).sendMenuMessage(eq(psid), anyString(), anyString(), anyList(), anyString());
+        verify(metaReplyService, times(2)).sendMenuMessage(eq(psid), anyString(), anyList(), anyString());
     }
 
     @Test
@@ -149,7 +149,7 @@ class HandoffIntegrationTest {
         assertEquals(Message.Direction.OUTBOUND, agent.getDirection());
 
         customerSays("баярлалаа");
-        verify(metaReplyService, times(1)).sendMenuMessage(eq(psid), anyString(), anyString(), anyList(), anyString());
+        verify(metaReplyService, times(1)).sendMenuMessage(eq(psid), anyString(), anyList(), anyString());
     }
 
     @Test
@@ -188,7 +188,7 @@ class HandoffIntegrationTest {
 
         assertNull(customer().getBotPausedUntil());
         assertNull(customer().getHandoffRequestedAt());
-        verify(metaReplyService, atLeastOnce()).sendMenuMessage(eq(psid), anyString(), anyString(), anyList(), anyString());
+        verify(metaReplyService, atLeastOnce()).sendMenuMessage(eq(psid), anyString(), anyList(), anyString());
     }
 
     @Test

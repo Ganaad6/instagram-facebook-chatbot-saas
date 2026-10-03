@@ -23,6 +23,8 @@ public class Conversation {
         AWAITING_PRODUCT,
         AWAITING_QUANTITY,
         AWAITING_CONFIRMATION,
+        /** Returning customer: reuse their last order's name, phone and address? */
+        CONFIRM_SAVED_DETAILS,
         COLLECT_NAME,
         COLLECT_PHONE,
         COLLECT_ADDRESS,

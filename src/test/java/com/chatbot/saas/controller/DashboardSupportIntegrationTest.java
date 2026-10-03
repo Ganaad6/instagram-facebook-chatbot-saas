@@ -28,6 +28,7 @@ import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 
 /** The endpoints and routes the dashboard relies on beyond the core API. */
 @SpringBootTest
@@ -157,6 +158,28 @@ class DashboardSupportIntegrationTest {
         page.get("content").forEach(o -> assertEquals(mine.getId(), o.get("customerId").asLong()));
         assertEquals(1, getJson(base + mine.getId() + "&status=PENDING").get("totalElements").asInt());
         assertEquals(3, getJson("/api/businesses/" + businessId + "/orders").get("totalElements").asInt());
+    }
+
+    @Test
+    void shopSetsTheBotsGreetingAndDeliveryNote() throws Exception {
+        String path = "/api/businesses/" + businessId;
+        assertEquals(200, mockMvc.perform(put(path).header("X-API-Key", apiKey).contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(Map.of("welcomeMessage", " Тавтай морил 🌸 ", "deliveryNote", "1–2 хоногт"))))
+                .andReturn().getResponse().getStatus());
+        JsonNode shop = getJson(path);
+        assertEquals("Тавтай морил 🌸", shop.get("welcomeMessage").asText());
+        assertEquals("1–2 хоногт", shop.get("deliveryNote").asText());
+
+        // Blank clears it; other fields are left alone when not sent
+        mockMvc.perform(put(path).header("X-API-Key", apiKey).contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(Map.of("deliveryNote", "  "))));
+        shop = getJson(path);
+        assertTrue(shop.get("deliveryNote").isNull());
+        assertEquals("Тавтай морил 🌸", shop.get("welcomeMessage").asText());
+
+        assertEquals(400, mockMvc.perform(put(path).header("X-API-Key", apiKey).contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(Map.of("welcomeMessage", "x".repeat(501)))))
+                .andReturn().getResponse().getStatus());
     }
 
     @Test

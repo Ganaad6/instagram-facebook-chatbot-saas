@@ -9,6 +9,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
 import java.math.BigDecimal;
+import java.util.ArrayList;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Locale;
@@ -35,7 +36,10 @@ import java.util.stream.IntStream;
  *
  * If the shop connected QPay, the order confirmation carries a QPay payment link.
  *
- * Platform-aware: Facebook gets quick-reply buttons; Instagram gets numbered text lists.
+ * Products go out as cards with a "Захиалах" button; choices come with quick-reply buttons and
+ * as numbered text (which also works where buttons don't show). A card's button works from any
+ * state, so an older card can still be tapped. Returning customers can reuse their last order's
+ * delivery details.
  * Every reply the customer receives is recorded in the conversation transcript.
  */
 @Service
@@ -48,6 +52,9 @@ public class ChatbotEngineService {
     private static final Set<String> RESTART_KEYWORDS = Set.of("цэс", "эхлэх", "дахин", "menu", "start", "restart");
     static final int MAX_QUANTITY = 99;
     private static final int QUANTITY_SHORTCUTS = 5;
+    /** Postback payload of a product card's button: PRODUCT_&lt;id&gt;. */
+    static final String PRODUCT_PAYLOAD = "PRODUCT_";
+    private static final int MAX_DESCRIPTION = 300;
 
     private final ConversationRepository conversationRepository;
     private final CategoryService categoryService;
@@ -81,7 +88,11 @@ public class ChatbotEngineService {
 
         if (state != Conversation.State.IDLE && isRestartKeyword(input)) {
             resetSelections(conversation);
-            showCategories(chat);
+            showCategories(chat, false);
+            return;
+        }
+        if (input.startsWith(PRODUCT_PAYLOAD)) {
+            chooseProductFromCard(chat, input.substring(PRODUCT_PAYLOAD.length()));
             return;
         }
 
@@ -91,6 +102,7 @@ public class ChatbotEngineService {
             case AWAITING_PRODUCT -> handleAwaitingProduct(chat, input);
             case AWAITING_QUANTITY -> handleAwaitingQuantity(chat, input);
             case AWAITING_CONFIRMATION -> handleAwaitingConfirmation(chat, input);
+            case CONFIRM_SAVED_DETAILS -> handleConfirmSavedDetails(chat, input);
             case COLLECT_NAME -> handleCollectName(chat, input);
             case COLLECT_PHONE -> handleCollectPhone(chat, input);
             case COLLECT_ADDRESS -> handleCollectAddress(chat, input);
@@ -109,7 +121,7 @@ public class ChatbotEngineService {
         }
         Integer choice = parseChoice(userInput);
         if (choice == null || choice < 1 || choice > categories.size()) {
-            rejectInput(chat, userInput, numberRange(categories.size()), () -> showCategories(chat));
+            rejectInput(chat, userInput, numberRange(categories.size()), () -> showCategories(chat, false));
             return;
         }
         chat.conversation().setSelectedCategory(categories.get(choice - 1));
@@ -123,7 +135,7 @@ public class ChatbotEngineService {
         if (category == null || !Boolean.TRUE.equals(category.getIsActive())) {
             resetSelections(conversation);
             reply(chat, "Уучлаарай, энэ ангилал одоо байхгүй байна.");
-            showCategories(chat);
+            showCategories(chat, false);
             return;
         }
         List<Product> products = productService.getActiveProductsByCategory(
@@ -131,7 +143,7 @@ public class ChatbotEngineService {
 
         if (products.isEmpty()) {
             reply(chat, "Энэ ангилалд одоогоор бараа алга. Өөр ангилал сонгоно уу:");
-            showCategories(chat);
+            showCategories(chat, false);
             return;
         }
         Integer choice = parseChoice(userInput);
@@ -164,12 +176,10 @@ public class ChatbotEngineService {
         if (confirmed && !isAvailable(conversation.getSelectedProduct())) {
             productNoLongerAvailable(chat);
         } else if (confirmed) {
-            saveState(conversation, Conversation.State.COLLECT_NAME);
-            reply(chat, "Таны нэрийг оруулна уу:");
+            askDeliveryDetails(chat);
         } else if (cancelled) {
             resetSelections(conversation);
-            reply(chat, "Буцаж ангилал сонгоно уу:");
-            showCategories(chat);
+            showCategories(chat, false);
         } else {
             rejectInput(chat, userInput, "1 (Тийм) эсвэл 0 (Буцах) гэж", () -> showConfirmation(chat));
         }
@@ -182,7 +192,9 @@ public class ChatbotEngineService {
         }
         chat.conversation().setCollectedName(userInput.trim());
         saveState(chat.conversation(), Conversation.State.COLLECT_PHONE);
-        reply(chat, "Утасны дугаараа бичнэ үү (8 оронтой):");
+        String text = "Утасны дугаараа бичнэ үү (8 оронтой):";
+        String messageId = metaReplyService.sendPhoneRequest(chat.senderId(), text, chat.token());
+        messageLogService.recordOutbound(chat.conversation(), messageId, text);
     }
 
     private void handleCollectPhone(Chat chat, String userInput) {
@@ -207,7 +219,78 @@ public class ChatbotEngineService {
             productNoLongerAvailable(chat);
             return;
         }
+        placeOrder(chat);
+    }
 
+    /**
+     * After the order summary is confirmed: a customer who ordered before is offered their last
+     * name, phone and address instead of typing them again.
+     */
+    private void askDeliveryDetails(Chat chat) {
+        Conversation conversation = chat.conversation();
+        Long customerId = conversation.getCustomer().getId();
+        Optional<Order> previous = customerId != null ? orderService.findLatestDeliveryDetails(customerId) : Optional.empty();
+        if (previous.isEmpty()) {
+            saveState(conversation, Conversation.State.COLLECT_NAME);
+            reply(chat, "Нэрээ бичнэ үү:");
+            return;
+        }
+        conversation.setCollectedName(previous.get().getCustomerName());
+        conversation.setCollectedPhone(previous.get().getPhone());
+        conversation.setCollectedAddress(previous.get().getAddress());
+        saveState(conversation, Conversation.State.CONFIRM_SAVED_DETAILS);
+        showSavedDetails(chat);
+    }
+
+    private void showSavedDetails(Chat chat) {
+        Conversation conversation = chat.conversation();
+        replyChoices(chat, String.format(
+                "Өмнөх мэдээллээр хүргэх үү?\n👤 %s · 📞 %s\n📍 %s\n\n1. Тийм ✅\n2. Өөр мэдээлэл оруулах ✏️",
+                conversation.getCollectedName(), conversation.getCollectedPhone(), conversation.getCollectedAddress()),
+                List.of(option("✅ Тийм", "1"), option("✏️ Өөр мэдээлэл", "2")));
+    }
+
+    private void handleConfirmSavedDetails(Chat chat, String userInput) {
+        Conversation conversation = chat.conversation();
+        String answer = userInput.trim().toLowerCase(Locale.ROOT);
+        if (Set.of("1", "тийм", "yes").contains(answer)) {
+            if (!isAvailable(conversation.getSelectedProduct())) {
+                productNoLongerAvailable(chat);
+                return;
+            }
+            placeOrder(chat);
+        } else if (Set.of("2", "өөр", "үгүй", "no").contains(answer)) {
+            conversation.setCollectedName(null);
+            conversation.setCollectedPhone(null);
+            conversation.setCollectedAddress(null);
+            saveState(conversation, Conversation.State.COLLECT_NAME);
+            reply(chat, "Нэрээ бичнэ үү:");
+        } else {
+            rejectInput(chat, userInput, "1 (Тийм) эсвэл 2 (Өөр мэдээлэл) гэж", () -> showSavedDetails(chat));
+        }
+    }
+
+    /** A "Захиалах" tap on a product card - possibly an older card, so it works in any state. */
+    private void chooseProductFromCard(Chat chat, String productId) {
+        Conversation conversation = chat.conversation();
+        Long id = parseId(productId);
+        Optional<Product> product = id != null
+                ? productService.findOrderable(conversation.getBusiness().getId(), id)
+                : Optional.empty();
+        resetSelections(conversation);
+        if (product.isEmpty()) {
+            reply(chat, "Уучлаарай, энэ бараа одоо захиалах боломжгүй байна. Өөр бараа сонгоно уу.");
+            showCategories(chat, false);
+            return;
+        }
+        conversation.setSelectedCategory(product.get().getCategory());
+        conversation.setSelectedProduct(product.get());
+        saveState(conversation, Conversation.State.AWAITING_QUANTITY);
+        askQuantity(chat);
+    }
+
+    private void placeOrder(Chat chat) {
+        Conversation conversation = chat.conversation();
         Order.Platform orderPlatform = "FACEBOOK".equalsIgnoreCase(chat.platform())
                 ? Order.Platform.FACEBOOK : Order.Platform.INSTAGRAM;
 
@@ -231,6 +314,10 @@ public class ChatbotEngineService {
         String nextStep = paymentUrl != null
                 ? "💳 Төлбөрөө QPay-ээр доорх холбоосоор төлнө үү:\n" + paymentUrl + "\nТөлбөр орсны дараа бид танд мэдэгдэнэ."
                 : "Бид тантай удахгүй холбогдож хүргэлтийг тохиролцоно. Баярлалаа! 🙏";
+        String deliveryNote = conversation.getBusiness().getDeliveryNote();
+        if (StringUtils.hasText(deliveryNote)) {
+            nextStep = "🚚 " + deliveryNote.strip() + "\n" + nextStep;
+        }
         reply(chat, String.format(
                 "✅ Захиалга #%d бүртгэгдлээ!\n" +
                 "📦 %s × %d — %s\n" +
@@ -267,7 +354,7 @@ public class ChatbotEngineService {
                 ? orderService.findRecentOpenOrder(conversation.getCustomer().getId())
                 : Optional.empty();
         if (open.isEmpty()) {
-            showCategories(chat);
+            showCategories(chat, true);
             return;
         }
         Order order = open.get();
@@ -285,15 +372,27 @@ public class ChatbotEngineService {
         reply(chat, text.toString());
     }
 
-    private void showCategories(Chat chat) {
-        List<Category> categories = categoryService.getActiveCategories(chat.conversation().getBusiness().getId());
+    /** @param welcome the first menu of a conversation, which opens with the shop's greeting */
+    private void showCategories(Chat chat, boolean welcome) {
+        Business business = chat.conversation().getBusiness();
+        List<Category> categories = categoryService.getActiveCategories(business.getId());
         if (categories.isEmpty()) {
             reply(chat, "Уучлаарай, одоогоор захиалах боломжтой бараа байхгүй байна.");
             return;
         }
         List<String> items = categories.stream().map(Category::getName).collect(Collectors.toList());
         saveState(chat.conversation(), Conversation.State.AWAITING_CATEGORY);
-        replyMenu(chat, "Сайн байна уу! 👋 Та юу захиалах вэ? Ангиллаа сонгоно уу:", items);
+        String intro = "Ангиллаа сонгоно уу:";
+        replyMenu(chat, welcome ? welcomeText(business) + "\n\n" + intro : intro, items);
+    }
+
+    static String welcomeText(Business business) {
+        if (StringUtils.hasText(business.getWelcomeMessage())) {
+            return business.getWelcomeMessage().strip();
+        }
+        return StringUtils.hasText(business.getName())
+                ? "Сайн байна уу! 👋 " + business.getName() + " — тавтай морил."
+                : "Сайн байна уу! 👋 Тавтай морил.";
     }
 
     private void showProducts(Chat chat) {
@@ -305,6 +404,28 @@ public class ChatbotEngineService {
             return;
         }
         Map<UUID, String> imageUrls = mediaService.imageUrls(products.stream().map(Product::getImageFileId).toList());
+        List<String> items = products.stream()
+                .map(p -> p.getName() + " — " + formatPrice(p.getPrice()))
+                .collect(Collectors.toList());
+
+        List<MetaReplyService.Card> cards = new ArrayList<>();
+        for (int i = 0; i < products.size(); i++) {
+            Product product = products.get(i);
+            String imageUrl = product.getImageFileId() != null ? imageUrls.get(product.getImageFileId()) : null;
+            String subtitle = formatPrice(product.getPrice())
+                    + (StringUtils.hasText(product.getDescription()) ? " · " + product.getDescription().strip() : "");
+            cards.add(new MetaReplyService.Card((i + 1) + ". " + product.getName(), subtitle, imageUrl,
+                    "Захиалах", PRODUCT_PAYLOAD + product.getId()));
+        }
+        String cardsId = metaReplyService.sendCards(chat.senderId(), cards, chat.token());
+        if (cardsId != null) {
+            messageLogService.recordOutbound(chat.conversation(), cardsId,
+                    MetaReplyService.renderMenuText(category.getName() + " 🛍️", items));
+            reply(chat, "Сонгосон барааныхаа \"Захиалах\" товчийг дарна уу, эсвэл дугаарыг нь бичнэ үү.");
+            return;
+        }
+
+        // Meta refused the cards (e.g. an image it couldn't fetch): photos, then a numbered list
         for (Product product : products) {
             String imageUrl = product.getImageFileId() != null ? imageUrls.get(product.getImageFileId()) : null;
             if (imageUrl != null) {
@@ -312,27 +433,21 @@ public class ChatbotEngineService {
                 messageLogService.recordOutbound(chat.conversation(), messageId, "[image] " + imageUrl);
             }
         }
-
-        List<String> items = products.stream()
-                .map(p -> p.getName() + " — " + formatPrice(p.getPrice()))
-                .collect(Collectors.toList());
         replyMenu(chat, category.getName() + " 🛍️ Бүтээгдэхүүнээ сонгоно уу:", items);
     }
 
     private void askQuantity(Chat chat) {
         Product product = chat.conversation().getSelectedProduct();
-        String text = String.format("'%s' — %s. Хэдэн ширхэг авах вэ? (1-%d)",
-                product.getName(), formatPrice(product.getPrice()), MAX_QUANTITY);
-        if ("FACEBOOK".equalsIgnoreCase(chat.platform())) {
-            List<Map<String, String>> shortcuts = IntStream.rangeClosed(1, QUANTITY_SHORTCUTS)
-                    .mapToObj(String::valueOf)
-                    .map(n -> Map.of("title", n, "payload", n))
-                    .collect(Collectors.toList());
-            String messageId = metaReplyService.sendWithQuickReplies(chat.senderId(), text, shortcuts, chat.token());
-            messageLogService.recordOutbound(chat.conversation(), messageId, text);
-        } else {
-            reply(chat, text);
+        StringBuilder text = new StringBuilder(product.getName() + " — " + formatPrice(product.getPrice()));
+        if (StringUtils.hasText(product.getDescription())) {
+            text.append("\n").append(truncate(product.getDescription().strip(), MAX_DESCRIPTION));
         }
+        text.append("\n\nХэдэн ширхэг авах вэ? (1–").append(MAX_QUANTITY).append(")");
+        List<Map<String, String>> shortcuts = IntStream.rangeClosed(1, QUANTITY_SHORTCUTS)
+                .mapToObj(String::valueOf)
+                .map(n -> option(n, n))
+                .collect(Collectors.toList());
+        replyChoices(chat, text.toString(), shortcuts);
     }
 
     private void showConfirmation(Chat chat) {
@@ -340,9 +455,10 @@ public class ChatbotEngineService {
         Product product = conversation.getSelectedProduct();
         int quantity = quantityOf(conversation);
         BigDecimal total = product.getPrice().multiply(BigDecimal.valueOf(quantity));
-        reply(chat, String.format(
-                "Та '%s' × %d — нийт %s захиалах гэж байна.\nЗөв үү?\n1. Тийм ✅\n0. Буцах 🔙",
-                product.getName(), quantity, formatPrice(total)));
+        replyChoices(chat, String.format(
+                "Та %s × %d — нийт %s захиалах гэж байна.\nЗөв үү?\n1. Тийм ✅\n0. Буцах 🔙",
+                product.getName(), quantity, formatPrice(total)),
+                List.of(option("✅ Тийм", "1"), option("🔙 Буцах", "0")));
     }
 
     // ─── Helpers ─────────────────────────────────────────────────────────────
@@ -399,8 +515,22 @@ public class ChatbotEngineService {
     }
 
     private void replyMenu(Chat chat, String introText, List<String> items) {
-        String messageId = metaReplyService.sendMenuMessage(chat.senderId(), chat.platform(), introText, items, chat.token());
+        String messageId = metaReplyService.sendMenuMessage(chat.senderId(), introText, items, chat.token());
         messageLogService.recordOutbound(chat.conversation(), messageId, MetaReplyService.renderMenuText(introText, items));
+    }
+
+    /** A message with quick-reply buttons; the text should list the same choices. */
+    private void replyChoices(Chat chat, String text, List<Map<String, String>> options) {
+        String messageId = metaReplyService.sendWithQuickReplies(chat.senderId(), text, options, chat.token());
+        messageLogService.recordOutbound(chat.conversation(), messageId, text);
+    }
+
+    private static Map<String, String> option(String title, String payload) {
+        return Map.of("title", title, "payload", payload);
+    }
+
+    private static String truncate(String value, int max) {
+        return value.length() <= max ? value : value.substring(0, max - 1) + "…";
     }
 
     static String formatPrice(BigDecimal amount) {
@@ -420,7 +550,7 @@ public class ChatbotEngineService {
     private void productNoLongerAvailable(Chat chat) {
         resetSelections(chat.conversation());
         reply(chat, "Уучлаарай, энэ бараа дууссан байна. Өөр бараа сонгоно уу.");
-        showCategories(chat);
+        showCategories(chat, false);
     }
 
     /** Menu keywords ("цэс", "menu", ...) that send the customer back to the category menu. */
@@ -442,6 +572,14 @@ public class ChatbotEngineService {
         conversation.setState(newState);
         conversation.setUpdatedAt(LocalDateTime.now());
         conversationRepository.save(conversation);
+    }
+
+    private static Long parseId(String input) {
+        try {
+            return Long.parseLong(input.trim());
+        } catch (NumberFormatException e) {
+            return null;
+        }
     }
 
     private Integer parseChoice(String input) {

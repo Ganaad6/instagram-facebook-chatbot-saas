@@ -77,6 +77,12 @@ public class OrderService {
         return orders.map(OrderResponse::from);
     }
 
+    /** The customer's latest order with delivery details, to offer them again on the next order. */
+    @Transactional(readOnly = true)
+    public Optional<Order> findLatestDeliveryDetails(Long customerId) {
+        return orderRepository.findFirstByCustomerIdAndCustomerNameIsNotNullAndPhoneIsNotNullAndAddressIsNotNullOrderByCreatedAtDesc(customerId);
+    }
+
     /** How long after ordering a customer's message is answered with that order's status. */
     static final int OPEN_ORDER_DAYS = 7;
 

@@ -234,7 +234,17 @@ All settings are environment variables (see `.env.example` for a commented templ
   Meta webhook redeliveries are recognized by message ID and skipped.
 - If the shop deactivates a product mid-conversation, the customer is told it's sold out and
   sent back to the menu instead of the order being placed.
-- Product photos (uploaded in the dashboard) are sent just before the product menu.
+- Products are sent as cards that scroll sideways (photo, name, price, description and a
+  **Захиалах** button), numbered so typing the number also works. A card's button works even
+  from an older message. If Meta refuses the cards, the photos and a numbered list are sent.
+- Choices (menus, quantity, yes/no) come with quick-reply buttons on both Messenger and
+  Instagram; Instagram shows them only in its phone app, so the numbers are always in the text.
+  If Meta refuses a message with buttons, it is resent as plain text.
+- The phone question offers Meta's "share my number" button.
+- A customer who ordered before is offered their last name, phone and address
+  (**1** use them, **2** enter new ones).
+- The first menu of a conversation opens with the shop's greeting, and the order confirmation
+  carries the shop's delivery note - both set in **Тохиргоо → Бот** (500 characters each).
 - Input the bot can't use (a question instead of a number) gets a short hint first. On the
   second miss in a row the bot suggests **оператор** (a person) or **цэс** and shows the choices
   again; after that it only repeats the suggestion instead of the menu.

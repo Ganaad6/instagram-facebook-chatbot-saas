@@ -28,6 +28,8 @@ public interface OrderRepository extends JpaRepository<Order, Long> {
 
     Optional<Order> findByIdAndBusinessId(Long id, Long businessId);
 
+    Optional<Order> findFirstByCustomerIdAndCustomerNameIsNotNullAndPhoneIsNotNullAndAddressIsNotNullOrderByCreatedAtDesc(Long customerId);
+
     Optional<Order> findFirstByCustomerIdAndStatusInAndCreatedAtAfterOrderByCreatedAtDesc(
             Long customerId, Collection<Order.Status> statuses, LocalDateTime after);
 

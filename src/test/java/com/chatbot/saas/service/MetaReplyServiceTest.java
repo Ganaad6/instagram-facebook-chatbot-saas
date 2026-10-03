@@ -82,10 +82,10 @@ class MetaReplyServiceTest {
     }
 
     @Test
-    void facebookMenuKeepsFullTextAndTruncatesButtonTitles() {
+    void menuKeepsFullTextAndTruncatesButtonTitles() {
         MetaReplyService service = service(HttpStatus.OK, "{\"message_id\":\"m\"}");
 
-        service.sendMenuMessage("r", "FACEBOOK", "Pick:",
+        service.sendMenuMessage("r", "Pick:",
                 List.of("Very long product name that exceeds limits — ₮125,000"), "token");
 
         JsonNode message = sentBodies.get(0).path("message");
@@ -96,14 +96,75 @@ class MetaReplyServiceTest {
     }
 
     @Test
-    void facebookMenuOverQuickReplyLimitFallsBackToText() {
+    void menuOverQuickReplyLimitFallsBackToText() {
         MetaReplyService service = service(HttpStatus.OK, "{\"message_id\":\"m\"}");
         List<String> items = IntStream.rangeClosed(1, 14).mapToObj(i -> "Item " + i).toList();
 
-        service.sendMenuMessage("r", "FACEBOOK", "Pick:", items, "token");
+        service.sendMenuMessage("r", "Pick:", items, "token");
 
         JsonNode message = sentBodies.get(0).path("message");
         assertTrue(message.path("quick_replies").isMissingNode());
         assertTrue(message.path("text").asText().contains("14. Item 14"));
+    }
+
+    @Test
+    void buttonsMetaRefusesAreResentAsPlainText() {
+        MetaReplyService service = service(HttpStatus.BAD_REQUEST, "{\"error\":{\"message\":\"nope\"}}");
+
+        service.sendWithQuickReplies("r", "Pick:\n1. A", List.of(Map.of("title", "1. A", "payload", "1")), "token");
+
+        assertEquals(2, sentBodies.size());
+        assertFalse(sentBodies.get(0).path("message").path("quick_replies").isMissingNode());
+        assertTrue(sentBodies.get(1).path("message").path("quick_replies").isMissingNode());
+        assertEquals("Pick:\n1. A", sentBodies.get(1).path("message").path("text").asText());
+    }
+
+    @Test
+    void serverErrorsAreNotResent() {
+        MetaReplyService service = service(HttpStatus.INTERNAL_SERVER_ERROR, "{}");
+
+        service.sendWithQuickReplies("r", "Pick:", List.of(Map.of("title", "1", "payload", "1")), "token");
+
+        assertEquals(1, sentBodies.size(), "the first message may still have arrived");
+    }
+
+    @Test
+    void phoneRequestUsesTheShareNumberButton() {
+        MetaReplyService service = service(HttpStatus.OK, "{\"message_id\":\"m\"}");
+
+        service.sendPhoneRequest("r", "Утас?", "token");
+
+        assertEquals("user_phone_number", sentBodies.get(0).path("message").path("quick_replies").get(0).path("content_type").asText());
+    }
+
+    @Test
+    void cardsAreSentTenPerMessageWithPostbackButtons() {
+        MetaReplyService service = service(HttpStatus.OK, "{\"message_id\":\"m\"}");
+        List<MetaReplyService.Card> cards = IntStream.rangeClosed(1, 12)
+                .mapToObj(i -> new MetaReplyService.Card(i + ". " + "x".repeat(100), "₮10", i == 1 ? "https://shop/media/1" : null,
+                        "Захиалах", "PRODUCT_" + i))
+                .toList();
+
+        assertEquals("m", service.sendCards("r", cards, "token"));
+
+        assertEquals(2, sentBodies.size());
+        JsonNode payload = sentBodies.get(0).path("message").path("attachment").path("payload");
+        assertEquals("generic", payload.path("template_type").asText());
+        JsonNode elements = payload.path("elements");
+        assertEquals(10, elements.size());
+        assertTrue(elements.get(0).path("title").asText().length() <= 80);
+        assertEquals("https://shop/media/1", elements.get(0).path("image_url").asText());
+        assertTrue(elements.get(1).path("image_url").isMissingNode());
+        JsonNode button = elements.get(0).path("buttons").get(0);
+        assertEquals("postback", button.path("type").asText());
+        assertEquals("PRODUCT_1", button.path("payload").asText());
+        assertEquals(2, sentBodies.get(1).path("message").path("attachment").path("payload").path("elements").size());
+    }
+
+    @Test
+    void refusedCardsReturnNullSoTheCallerCanFallBack() {
+        MetaReplyService service = service(HttpStatus.BAD_REQUEST, "{}");
+
+        assertNull(service.sendCards("r", List.of(new MetaReplyService.Card("1. A", "₮10", null, "Захиалах", "PRODUCT_1")), "token"));
     }
 }

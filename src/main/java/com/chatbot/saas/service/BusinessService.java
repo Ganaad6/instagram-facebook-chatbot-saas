@@ -85,7 +85,13 @@ public class BusinessService {
         if (request.getEmail() != null) business.setEmail(request.getEmail());
         if (request.getInstagramAccountId() != null) business.setInstagramAccountId(request.getInstagramAccountId());
         if (request.getFacebookPageId() != null) business.setFacebookPageId(request.getFacebookPageId());
+        if (request.getWelcomeMessage() != null) business.setWelcomeMessage(blankToNull(request.getWelcomeMessage()));
+        if (request.getDeliveryNote() != null) business.setDeliveryNote(blankToNull(request.getDeliveryNote()));
         return BusinessResponse.from(businessRepository.save(business));
+    }
+
+    private static String blankToNull(String value) {
+        return value.isBlank() ? null : value.strip();
     }
 
     @Transactional

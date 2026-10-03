@@ -86,7 +86,7 @@ class PaymentIntegrationTest {
                 .name("Red shoes").price(new BigDecimal("10000.00")).build());
 
         when(metaReplyService.sendText(anyString(), anyString(), anyString())).thenAnswer(inv -> "m_bot_" + mids.incrementAndGet());
-        when(metaReplyService.sendMenuMessage(anyString(), anyString(), anyString(), anyList(), anyString()))
+        when(metaReplyService.sendMenuMessage(anyString(), anyString(), anyList(), anyString()))
                 .thenAnswer(inv -> "m_bot_" + mids.incrementAndGet());
         when(metaReplyService.sendWithQuickReplies(anyString(), anyString(), anyList(), anyString()))
                 .thenAnswer(inv -> "m_bot_" + mids.incrementAndGet());
