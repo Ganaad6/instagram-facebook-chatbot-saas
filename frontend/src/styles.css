@@ -1,4 +1,4 @@
-/* Colors, type and radii follow the AILAB Web design system (shadcn/ui, slate, brand blue). */
+/* Colors, type and radii: shadcn/ui slate palette with a brand blue. */
 :root {
   --bg: #ffffff;
   --surface: #ffffff;
