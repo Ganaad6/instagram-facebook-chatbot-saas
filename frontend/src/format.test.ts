@@ -1,8 +1,34 @@
 import { describe, expect, it } from 'vitest';
-import { formatDateTime, formatMoney, formatShort, isFuture, parseLocal } from './format';
+import { formatDateTime, formatDay, formatMoney, formatShort, formatToday, formatWaiting, greeting, initials, isFuture, parseLocal } from './format';
 import { lastDays, niceMax } from './components/DailyChart';
 
 describe('format', () => {
+  it('says how long a customer has waited', () => {
+    const now = new Date(2026, 9, 3, 16, 40);
+    expect(formatWaiting('2026-10-03T16:26:30', now)).toBe('13 мин');
+    expect(formatWaiting('2026-10-03T14:35:00', now)).toBe('2 ц 5 мин');
+    expect(formatWaiting('2026-10-03T14:40:00', now)).toBe('2 ц');
+    expect(formatWaiting('2026-09-30T10:00:00', now)).toBe('3 өдөр');
+    expect(formatWaiting('2026-10-03T16:45:00', now)).toBe('0 мин');
+  });
+
+  it('names the day and greets by time of day', () => {
+    const now = new Date(2026, 9, 3, 9, 0);
+    expect(formatToday(now)).toBe('Бямба, 10-р сарын 3');
+    expect(greeting(now)).toBe('Өглөөний мэнд');
+    expect(greeting(new Date(2026, 9, 3, 13, 0))).toBe('Өдрийн мэнд');
+    expect(greeting(new Date(2026, 9, 3, 23, 0))).toBe('Оройн мэнд');
+    expect(formatDay('2026-10-03T08:00:00', now)).toBe('Өнөөдөр');
+    expect(formatDay('2026-10-02T08:00:00', now)).toBe('Өчигдөр');
+    expect(formatDay('2026-09-20T08:00:00', now)).toBe('2026.09.20');
+  });
+
+  it('makes avatar initials', () => {
+    expect(initials('Болормаа Ганбаатар')).toBe('БГ');
+    expect(initials('  тэмүүлэн ')).toBe('Т');
+    expect(initials(null)).toBe('#');
+  });
+
   it('formats tugrik amounts without decimals', () => {
     expect(formatMoney(20000)).toMatch(/^₮20[\s,.  ]?000$/);
     expect(formatMoney(null)).toBe('₮0');

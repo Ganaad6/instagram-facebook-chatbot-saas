@@ -1,5 +1,6 @@
 import { useEffect, useState, type FormEvent, type ReactNode } from 'react';
 import { Link, Navigate, useLocation, useNavigate, useParams } from 'react-router-dom';
+import { Bot } from 'lucide-react';
 import { api, ApiError } from '../api';
 import { useAuth } from '../auth';
 import { Field, Spinner } from '../components/ui';
@@ -11,7 +12,7 @@ function AuthCard({ title, subtitle, children, footer }: {
   return (
     <div className="auth-page">
       <div className="auth-card">
-        <div className="auth-brand"><span className="brand-mark" aria-hidden="true">✉</span> Дэлгүүрийн самбар</div>
+        <div className="auth-brand"><span className="brand-mark" aria-hidden="true"><Bot size={20} /></span> Дэлгүүрийн самбар</div>
         <h1>{title}</h1>
         {subtitle && <p className="muted">{subtitle}</p>}
         {children}

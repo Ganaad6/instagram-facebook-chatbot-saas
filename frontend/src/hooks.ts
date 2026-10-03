@@ -48,3 +48,13 @@ export function useResource<T>(path: string | null, pollMs?: number): Resource<T
   const reload = useCallback(() => load(false), [load]);
   return { data, error, loading, reload };
 }
+
+/** The current time, refreshed every intervalMs - for labels like "waiting 14 min". */
+export function useNow(intervalMs = 30000): Date {
+  const [now, setNow] = useState(() => new Date());
+  useEffect(() => {
+    const id = window.setInterval(() => setNow(new Date()), intervalMs);
+    return () => window.clearInterval(id);
+  }, [intervalMs]);
+  return now;
+}

@@ -59,11 +59,20 @@ public class OrderService {
     }
 
     @Transactional(readOnly = true)
-    public Page<OrderResponse> getOrdersByBusiness(Long businessId, String status, int page, int size) {
+    public Page<OrderResponse> getOrdersByBusiness(Long businessId, String status, Long customerId, int page, int size) {
         Pageable pageable = PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "createdAt"));
-        Page<Order> orders = status != null
-                ? orderRepository.findAllByBusinessIdAndStatus(businessId, Order.Status.valueOf(status.toUpperCase()), pageable)
-                : orderRepository.findAllByBusinessId(businessId, pageable);
+        Order.Status orderStatus = status != null ? Order.Status.valueOf(status.toUpperCase()) : null;
+        Page<Order> orders;
+        if (customerId != null) {
+            // Scoped by business too, so another shop's customer id just matches nothing
+            orders = orderStatus != null
+                    ? orderRepository.findAllByBusinessIdAndCustomerIdAndStatus(businessId, customerId, orderStatus, pageable)
+                    : orderRepository.findAllByBusinessIdAndCustomerId(businessId, customerId, pageable);
+        } else {
+            orders = orderStatus != null
+                    ? orderRepository.findAllByBusinessIdAndStatus(businessId, orderStatus, pageable)
+                    : orderRepository.findAllByBusinessId(businessId, pageable);
+        }
         return orders.map(OrderResponse::from);
     }
 

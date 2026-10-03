@@ -4,6 +4,7 @@ import { BrowserRouter } from 'react-router-dom';
 import { App } from './App';
 import { AuthProvider } from './auth';
 import { ToastProvider } from './components/Toast';
+import '@fontsource-variable/nunito-sans';
 import './styles.css';
 
 createRoot(document.getElementById('root')!).render(

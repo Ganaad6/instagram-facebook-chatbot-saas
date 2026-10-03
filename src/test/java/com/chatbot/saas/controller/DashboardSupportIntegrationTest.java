@@ -144,6 +144,22 @@ class DashboardSupportIntegrationTest {
     }
 
     @Test
+    void ordersFilterByCustomerForTheChatPanel() throws Exception {
+        Customer mine = customer("psid-a-" + System.nanoTime(), LocalDateTime.now());
+        Customer other = customer("psid-b-" + System.nanoTime(), LocalDateTime.now());
+        order(mine, "A", Order.PaymentStatus.NOT_REQUESTED, Order.Status.PENDING);
+        order(mine, "A", Order.PaymentStatus.NOT_REQUESTED, Order.Status.DELIVERED);
+        order(other, "B", Order.PaymentStatus.NOT_REQUESTED, Order.Status.PENDING);
+        String base = "/api/businesses/" + businessId + "/orders?customerId=";
+
+        JsonNode page = getJson(base + mine.getId());
+        assertEquals(2, page.get("totalElements").asInt());
+        page.get("content").forEach(o -> assertEquals(mine.getId(), o.get("customerId").asLong()));
+        assertEquals(1, getJson(base + mine.getId() + "&status=PENDING").get("totalElements").asInt());
+        assertEquals(3, getJson("/api/businesses/" + businessId + "/orders").get("totalElements").asInt());
+    }
+
+    @Test
     void summaryReportsQPayRevenueAndUnpaidInvoices() throws Exception {
         Customer c = customer("psid-" + System.nanoTime(), LocalDateTime.now());
         order(c, "A", Order.PaymentStatus.PAID, Order.Status.CONFIRMED);

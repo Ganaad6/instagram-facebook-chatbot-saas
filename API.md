@@ -116,6 +116,9 @@ Orders carry a snapshot of what was bought: `productName`, `unitPrice`, `quantit
 (`/orders/export`) includes the same columns. The analytics summary includes `totalRevenue`
 (sum of non-cancelled orders) and `totalQuantity` per top product.
 
+`GET /orders` takes optional `status` and `customerId` filters (plus `page`, `size`), newest
+first; `customerId` lists one chat customer's orders.
+
 The order-notification webhook sends `{"event": "NEW_ORDER", "orderId", "businessId",
 "product", "quantity", "unitPrice", "totalAmount", "customerName", "phone", "address", "status"}`.
 

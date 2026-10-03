@@ -1,6 +1,7 @@
 import { useEffect, useRef, type ReactNode } from 'react';
+import { X } from 'lucide-react';
 import type { OrderStatus, PaymentStatus } from '../types';
-import { ORDER_STATUS_LABELS, PAYMENT_STATUS_LABELS } from '../format';
+import { initials, ORDER_STATUS_LABELS, PAYMENT_STATUS_LABELS, PLATFORM_LABELS } from '../format';
 
 export function Spinner({ label = 'Ачаалж байна…' }: { label?: string }) {
   return (
@@ -29,15 +30,31 @@ export function Empty({ title, children }: { title: string; children?: ReactNode
   );
 }
 
-export function PageHeader({ title, actions, children }: { title: string; actions?: ReactNode; children?: ReactNode }) {
+export function PageHeader({ title, eyebrow, actions, children }: {
+  title: string; eyebrow?: string; actions?: ReactNode; children?: ReactNode;
+}) {
   return (
     <header className="page-header">
       <div>
+        {eyebrow && <div className="eyebrow">{eyebrow}</div>}
         <h1>{title}</h1>
         {children && <p className="muted">{children}</p>}
       </div>
       {actions && <div className="page-actions">{actions}</div>}
     </header>
+  );
+}
+
+/** A customer's initials on a color picked from their id, with a dot for the platform. */
+export function Avatar({ id, name, platform, large }: {
+  id: number; name: string | null; platform?: 'FACEBOOK' | 'INSTAGRAM'; large?: boolean;
+}) {
+  const tone = name ? `tone-${id % 6}` : 'tone-none';
+  return (
+    <span className={`avatar ${tone}${large ? ' large' : ''}`} aria-hidden="true">
+      {initials(name)}
+      {platform && !large && <span className={`avatar-platform ${platform}`} title={PLATFORM_LABELS[platform]} />}
+    </span>
   );
 }
 
@@ -77,7 +94,7 @@ export function Modal({ title, onClose, children, footer, wide }: {
       <div className={`modal${wide ? ' modal-wide' : ''}`} role="dialog" aria-modal="true" aria-label={title} ref={dialog} tabIndex={-1}>
         <div className="modal-head">
           <h2>{title}</h2>
-          <button className="icon-btn" onClick={onClose} aria-label="Хаах">✕</button>
+          <button className="icon-btn" onClick={onClose} aria-label="Хаах"><X size={18} aria-hidden="true" /></button>
         </div>
         <div className="modal-body">{children}</div>
         {footer && <div className="modal-foot">{footer}</div>}

@@ -1,12 +1,13 @@
-import { useEffect, useRef, useState, type FormEvent, type UIEvent } from 'react';
+import { Fragment, useEffect, useRef, useState, type FormEvent, type UIEvent } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
+import { ArrowLeft, Bot, ChevronLeft, ChevronRight, Clock, PauseCircle, Send } from 'lucide-react';
 import { api } from '../api';
 import { useMe } from '../auth';
-import { useResource } from '../hooks';
+import { useNow, useResource } from '../hooks';
 import { useToast } from '../components/Toast';
-import { Empty, ErrorBox, Spinner } from '../components/ui';
-import { formatDateTime, formatShort, isFuture, PLATFORM_LABELS } from '../format';
-import type { ChatSummary, Message, Page } from '../types';
+import { Avatar, Empty, ErrorBox, OrderStatusBadge, PaymentBadge, Spinner } from '../components/ui';
+import { formatDateTime, formatDay, formatMoney, formatShort, formatWaiting, isFuture, PLATFORM_LABELS } from '../format';
+import type { ChatSummary, Message, Order, Page } from '../types';
 
 const SENDER_LABELS = { CUSTOMER: 'Хэрэглэгч', BOT: 'Бот', AGENT: 'Ажилтан' } as const;
 
@@ -34,16 +35,19 @@ export function ChatsPage() {
   }, [page, totalPages]);
 
   const reloadAll = () => { void chats.reload(); void waiting.reload(); };
+  const filter = (next: boolean) => { setWaitingOnly(next); setPage(0); };
 
   return (
     <div className={`chats${selectedId ? ' has-selection' : ''}`}>
-      <section className="chat-list card flush">
+      <section className="chat-list" aria-label="Чатын жагсаалт">
         <div className="chat-list-head">
           <h1>Чат</h1>
-          <label className="toggle small">
-            <input type="checkbox" checked={waitingOnly} onChange={(e) => { setWaitingOnly(e.target.checked); setPage(0); }} />
-            <span>Хүн хүлээж буй{waitingCount > 0 && ` (${waitingCount})`}</span>
-          </label>
+          <div className="segmented" role="group" aria-label="Шүүлтүүр">
+            <button className={`segment${!waitingOnly ? ' active' : ''}`} aria-pressed={!waitingOnly} onClick={() => filter(false)}>Бүгд</button>
+            <button className={`segment${waitingOnly ? ' active' : ''}`} aria-pressed={waitingOnly} onClick={() => filter(true)}>
+              Хүн хүлээж буй{waitingCount > 0 && <> <span className="segment-count">{waitingCount}</span></>}
+            </button>
+          </div>
         </div>
         {chats.error && <ErrorBox message={chats.error} onRetry={chats.reload} />}
         {!chats.data && !chats.error && <Spinner />}
@@ -55,17 +59,22 @@ export function ChatsPage() {
         <ul className="list">
           {list.map((c) => (
             <li key={c.customerId}>
-              <Link to={`/chats/${c.customerId}`} className={`list-row chat-row${c.customerId === selectedId ? ' selected' : ''}`}>
-                <div className="list-main">
-                  <strong>{chatName(c)}</strong>
-                  <span className="muted ellipsis">
-                    {c.lastMessageSender && c.lastMessageSender !== 'CUSTOMER' && `${SENDER_LABELS[c.lastMessageSender]}: `}{c.lastMessage}
-                  </span>
-                </div>
-                <div className="list-side">
-                  <span className="muted small">{formatShort(c.lastMessageAt ?? c.lastInteractionAt)}</span>
-                  {c.handoffRequestedAt ? <span className="badge badge-warning">Хүн хүлээж буй</span>
-                    : isFuture(c.botPausedUntil) ? <span className="badge badge-neutral">Бот зогссон</span> : null}
+              <Link to={`/chats/${c.customerId}`}
+                    className={`chat-row${c.customerId === selectedId ? ' selected' : ''}${c.handoffRequestedAt ? ' waiting' : ''}`}
+                    aria-current={c.customerId === selectedId ? 'page' : undefined}>
+                <Avatar id={c.customerId} name={c.displayName} platform={c.platform} />
+                <div className="chat-row-body">
+                  <div className="chat-row-line">
+                    <strong className="ellipsis">{chatName(c)}</strong>
+                    <span className="time">{formatShort(c.lastMessageAt ?? c.lastInteractionAt)}</span>
+                  </div>
+                  <div className="chat-row-line">
+                    <span className="preview ellipsis">
+                      {c.lastMessageSender && c.lastMessageSender !== 'CUSTOMER' && `${SENDER_LABELS[c.lastMessageSender]}: `}{c.lastMessage}
+                    </span>
+                    {c.handoffRequestedAt ? <span className="badge badge-warning">Хүн хүлээж буй</span>
+                      : isFuture(c.botPausedUntil) ? <span className="badge badge-neutral">Бот зогссон</span> : null}
+                  </div>
                 </div>
               </Link>
             </li>
@@ -73,26 +82,44 @@ export function ChatsPage() {
         </ul>
         {chats.data && chats.data.totalPages > 1 && (
           <div className="pager">
-            <button className="btn btn-small" disabled={page === 0} onClick={() => setPage(page - 1)}>←</button>
+            <button className="icon-btn" aria-label="Өмнөх" disabled={page === 0} onClick={() => setPage(page - 1)}><ChevronLeft size={18} /></button>
             <span className="muted">{page + 1} / {chats.data.totalPages}</span>
-            <button className="btn btn-small" disabled={page + 1 >= chats.data.totalPages} onClick={() => setPage(page + 1)}>→</button>
+            <button className="icon-btn" aria-label="Дараах" disabled={page + 1 >= chats.data.totalPages} onClick={() => setPage(page + 1)}><ChevronRight size={18} /></button>
           </div>
         )}
       </section>
 
-      <section className="chat-pane card flush">
-        {selectedId ? <Conversation key={selectedId} businessId={business.id} customerId={selectedId} onChanged={reloadAll} />
-          : <Empty title="Чат сонгоно уу">Хэрэглэгч “оператор” гэж бичвэл бот зогсоод таныг хүлээнэ.</Empty>}
-      </section>
+      {selectedId ? <ChatDetail key={selectedId} businessId={business.id} customerId={selectedId} onChanged={reloadAll} />
+        : (
+          <section className="chat-pane">
+            <Empty title="Чат сонгоно уу">Хэрэглэгч “оператор” гэж бичвэл бот зогсоод таныг хүлээнэ.</Empty>
+          </section>
+        )}
     </div>
   );
 }
 
-function Conversation({ businessId, customerId, onChanged }: { businessId: number; customerId: number; onChanged: () => void }) {
+function ChatDetail({ businessId, customerId, onChanged }: { businessId: number; customerId: number; onChanged: () => void }) {
+  const chat = useResource<ChatSummary>(`/api/businesses/${businessId}/chats/${customerId}`, 10000);
+  const orders = useResource<Page<Order>>(`/api/businesses/${businessId}/orders?customerId=${customerId}&size=5`, 20000);
+  return (
+    <>
+      <section className="chat-pane" aria-label="Харилцаа">
+        <Conversation businessId={businessId} customerId={customerId} chat={chat.data} latestOrder={orders.data?.content[0]}
+                      onChanged={async () => { await chat.reload(); onChanged(); }} />
+      </section>
+      {chat.data && <CustomerPanel chat={chat.data} orders={orders.data} />}
+    </>
+  );
+}
+
+function Conversation({ businessId, customerId, chat: c, latestOrder, onChanged }: {
+  businessId: number; customerId: number; chat: ChatSummary | undefined; latestOrder: Order | undefined; onChanged: () => Promise<void>;
+}) {
   const navigate = useNavigate();
   const toast = useToast();
+  const now = useNow();
   const base = `/api/businesses/${businessId}/customers/${customerId}`;
-  const chat = useResource<ChatSummary>(`/api/businesses/${businessId}/chats/${customerId}`, 10000);
   const messages = useResource<Message[]>(`${base}/messages?limit=200`, 5000);
   const [text, setText] = useState('');
   const [sending, setSending] = useState(false);
@@ -108,7 +135,7 @@ function Conversation({ businessId, customerId, onChanged }: { businessId: numbe
     atBottom.current = el.scrollHeight - el.scrollTop - el.clientHeight < 80;
   };
 
-  const refresh = async () => { await Promise.all([messages.reload(), chat.reload()]); onChanged(); };
+  const refresh = async () => { await Promise.all([messages.reload(), onChanged()]); };
 
   const send = async (e: FormEvent) => {
     e.preventDefault();
@@ -136,41 +163,112 @@ function Conversation({ businessId, customerId, onChanged }: { businessId: numbe
     }
   };
 
-  const c = chat.data;
   const paused = c && (isFuture(c.botPausedUntil) || !!c.handoffRequestedAt);
 
   return (
     <div className="conversation">
       <header className="conversation-head">
-        <button className="icon-btn back" onClick={() => navigate('/chats')} aria-label="Буцах">←</button>
+        <button className="icon-btn back" onClick={() => navigate('/chats')} aria-label="Буцах"><ArrowLeft size={20} /></button>
+        {c && <Avatar id={c.customerId} name={c.displayName} />}
         <div className="conversation-title">
-          <strong>{c ? chatName(c) : '…'}</strong>
-          {c && <span className="muted small">{PLATFORM_LABELS[c.platform]}{paused && c.botPausedUntil && ` · Бот ${formatDateTime(c.botPausedUntil)} хүртэл зогссон`}</span>}
+          <strong className="ellipsis">{c ? chatName(c) : '…'}</strong>
+          {c && (
+            <span className="muted small">
+              {PLATFORM_LABELS[c.platform]}
+              {paused && (isFuture(c.botPausedUntil) ? ` · Бот ${formatShort(c.botPausedUntil)} хүртэл зогссон` : ' · Бот зогссон')}
+            </span>
+          )}
         </div>
         {c && (paused
-          ? <button className="btn btn-small btn-primary" onClick={() => void botAction('resume-bot')}>Ботод шилжүүлэх</button>
-          : <button className="btn btn-small" onClick={() => void botAction('pause-bot')}>Ботыг зогсоох</button>)}
+          ? <button className="btn btn-primary" onClick={() => void botAction('resume-bot')}><Bot size={16} aria-hidden="true" /> Ботод шилжүүлэх</button>
+          : <button className="btn" onClick={() => void botAction('pause-bot')}><PauseCircle size={16} aria-hidden="true" /> Ботыг зогсоох</button>)}
       </header>
       {c?.handoffRequestedAt && (
-        <div className="note warning">Хэрэглэгч {formatShort(c.handoffRequestedAt)}-д ажилтантай холбогдох хүсэлт гаргасан. Хариу бичнэ үү.</div>
+        <div className="note warning" role="status">
+          <Clock size={18} aria-hidden="true" />
+          <span>
+            <strong>{formatWaiting(c.handoffRequestedAt, now)} хүлээж байна.</strong>{' '}
+            Хэрэглэгч {formatShort(c.handoffRequestedAt)}-д ажилтантай ярих хүсэлт гаргасан.
+          </span>
+        </div>
+      )}
+      {latestOrder && (
+        <Link className="conversation-order" to={`/orders/${latestOrder.id}`}>
+          <span className="ellipsis"><strong>#{latestOrder.id}</strong> {latestOrder.productName} · {formatMoney(latestOrder.totalAmount)}</span>
+          <OrderStatusBadge status={latestOrder.status} />
+        </Link>
       )}
       <div className="messages" onScroll={onScroll}>
         {messages.error && <ErrorBox message={messages.error} />}
         {!messages.data && !messages.error && <Spinner />}
-        {messages.data?.map((m) => (
-          <div key={m.id} className={`bubble bubble-${m.senderType.toLowerCase()}`}>
-            <div className="bubble-text">{m.content}</div>
-            <div className="bubble-meta">{SENDER_LABELS[m.senderType]} · {formatShort(m.sentAt)}</div>
-          </div>
-        ))}
+        {messages.data?.map((m, i) => {
+          const day = formatDay(m.sentAt, now);
+          const newDay = i === 0 || formatDay(messages.data![i - 1].sentAt, now) !== day;
+          return (
+            <Fragment key={m.id}>
+              {newDay && <div className="day-divider">{day}</div>}
+              <div className={`bubble bubble-${m.senderType.toLowerCase()}`}>
+                <div className="bubble-text">{m.content}</div>
+                <div className="bubble-meta">
+                  {/* The day is in the divider above, so the time alone is enough */}
+                  {m.senderType !== 'CUSTOMER' && `${SENDER_LABELS[m.senderType]} · `}{formatDateTime(m.sentAt).slice(11)}
+                </div>
+              </div>
+            </Fragment>
+          );
+        })}
         <div ref={bottom} />
       </div>
       <form className="composer" onSubmit={send}>
-        <textarea rows={2} maxLength={2000} placeholder="Хариу бичих… (илгээхэд бот энэ хэрэглэгчид түр зогсоно)"
-                  value={text} onChange={(e) => setText(e.target.value)}
-                  onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); void send(e); } }} />
-        <button className="btn btn-primary" disabled={sending || !text.trim()}>{sending ? '…' : 'Илгээх'}</button>
+        <div className="composer-row">
+          <label className="sr-only" htmlFor="reply">Хариу</label>
+          <textarea id="reply" rows={2} maxLength={2000} placeholder="Хариу бичих…"
+                    value={text} onChange={(e) => setText(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); void send(e); } }} />
+          <button className="btn btn-primary send" aria-label="Илгээх" disabled={sending || !text.trim()}>
+            {sending ? <span className="spinner" aria-hidden="true" /> : <Send size={18} aria-hidden="true" />}
+          </button>
+        </div>
+        <div className="composer-hint">Enter — илгээх · Shift+Enter — шинэ мөр · Таныг бичихэд бот энэ хэрэглэгчид түр зогсоно</div>
       </form>
     </div>
+  );
+}
+
+/** Who the customer is and what they ordered, beside the conversation on wide screens. */
+function CustomerPanel({ chat, orders }: { chat: ChatSummary; orders: Page<Order> | undefined }) {
+  // Phone and address are only known from the order form
+  const contact = orders?.content.find((o) => o.phone || o.address);
+  return (
+    <aside className="customer-panel" aria-label="Хэрэглэгч">
+      <div className="customer-card">
+        <Avatar id={chat.customerId} name={chat.displayName} large />
+        <strong>{chatName(chat)}</strong>
+        <span className={`platform-pill ${chat.platform}`}>{PLATFORM_LABELS[chat.platform]}</span>
+      </div>
+      <dl className="details">
+        <dt>Утас</dt><dd>{contact?.phone ? <a href={`tel:${contact.phone}`}>{contact.phone}</a> : '—'}</dd>
+        <dt>Хаяг</dt><dd>{contact?.address || '—'}</dd>
+        <dt>Сүүлд</dt><dd>{formatDateTime(chat.lastMessageAt ?? chat.lastInteractionAt)}</dd>
+      </dl>
+      <div className="customer-orders">
+        <div className="card-head">
+          <h2>Захиалгууд</h2>
+          {orders && <span className="muted small">{orders.totalElements}</span>}
+        </div>
+        {!orders && <Spinner />}
+        {orders && orders.content.length === 0 && <span className="muted small">Захиалга хийгээгүй байна</span>}
+        {orders?.content.map((o) => (
+          <Link key={o.id} to={`/orders/${o.id}`} className="order-card">
+            <strong>#{o.id} · {o.productName} × {o.quantity}</strong>
+            <span className="badges">
+              <span className="amount">{formatMoney(o.totalAmount)}</span>
+              <OrderStatusBadge status={o.status} />
+              {o.paymentStatus !== 'NOT_REQUESTED' && <PaymentBadge status={o.paymentStatus} />}
+            </span>
+          </Link>
+        ))}
+      </div>
+    </aside>
   );
 }

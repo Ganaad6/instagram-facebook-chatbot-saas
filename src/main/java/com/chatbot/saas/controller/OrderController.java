@@ -30,10 +30,11 @@ public class OrderController {
     public ResponseEntity<Page<OrderResponse>> getOrders(
             @PathVariable Long businessId,
             @RequestParam(required = false) String status,
+            @RequestParam(required = false) Long customerId,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size) {
         tenantContext.assertAccess(businessId);
-        return ResponseEntity.ok(orderService.getOrdersByBusiness(businessId, status, page, size));
+        return ResponseEntity.ok(orderService.getOrdersByBusiness(businessId, status, customerId, page, size));
     }
 
     @GetMapping("/{id}")
