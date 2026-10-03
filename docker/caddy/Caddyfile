@@ -1,0 +1,12 @@
+# HTTPS in front of the app. Caddy obtains and renews a Let's Encrypt certificate for DOMAIN
+# automatically (ports 80 and 443 must reach this server and DOMAIN's DNS must point here).
+# With DOMAIN=localhost it uses a local self-signed certificate instead, for trying it out.
+{$DOMAIN} {
+	encode zstd gzip
+	# Uploads are capped at 6 MB by the app; refuse anything far larger before it gets there
+	request_body {
+		max_size 8MB
+	}
+	# Sets X-Forwarded-For/-Proto, which the app trusts from this private Docker network
+	reverse_proxy app:8080
+}

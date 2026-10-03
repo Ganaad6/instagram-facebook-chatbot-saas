@@ -1,0 +1,61 @@
+package com.chatbot.saas.dto.response;
+
+import com.chatbot.saas.entity.Order;
+import lombok.Builder;
+import lombok.Data;
+
+import java.math.BigDecimal;
+import java.time.LocalDateTime;
+
+@Data
+@Builder
+public class OrderResponse {
+    private Long id;
+    private Long businessId;
+    private Long customerId;
+    private Long productId;
+    private String productName;
+    /** Unit price at the time of the order (same value as unitPrice; kept for compatibility). */
+    private BigDecimal productPrice;
+    private BigDecimal unitPrice;
+    private Integer quantity;
+    private BigDecimal totalAmount;
+    private String customerName;
+    private String phone;
+    private String address;
+    private String status;
+    private String platform;
+    private String notes;
+    /** NOT_REQUESTED, PENDING (QPay invoice sent, unpaid) or PAID. */
+    private String paymentStatus;
+    /** QPay link the customer was sent to pay, while an invoice exists. */
+    private String paymentUrl;
+    private LocalDateTime paidAt;
+    private LocalDateTime createdAt;
+    private LocalDateTime updatedAt;
+
+    public static OrderResponse from(Order order) {
+        return OrderResponse.builder()
+                .id(order.getId())
+                .businessId(order.getBusiness().getId())
+                .customerId(order.getCustomer().getId())
+                .productId(order.getProduct().getId())
+                .productName(order.getProductName())
+                .productPrice(order.getUnitPrice())
+                .unitPrice(order.getUnitPrice())
+                .quantity(order.getQuantity())
+                .totalAmount(order.getTotalAmount())
+                .customerName(order.getCustomerName())
+                .phone(order.getPhone())
+                .address(order.getAddress())
+                .status(order.getStatus().name())
+                .platform(order.getPlatform().name())
+                .notes(order.getNotes())
+                .paymentStatus(order.getPaymentStatus().name())
+                .paymentUrl(order.getPaymentUrl())
+                .paidAt(order.getPaidAt())
+                .createdAt(order.getCreatedAt())
+                .updatedAt(order.getUpdatedAt())
+                .build();
+    }
+}

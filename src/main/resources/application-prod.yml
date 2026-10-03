@@ -1,0 +1,7 @@
+# Production overrides (SPRING_PROFILES_ACTIVE=prod). Production runs behind HTTPS
+# (BASE_URL must be https://, see SecurityPropertiesValidator), so cookies are HTTPS-only.
+server:
+  servlet:
+    session:
+      cookie:
+        secure: true

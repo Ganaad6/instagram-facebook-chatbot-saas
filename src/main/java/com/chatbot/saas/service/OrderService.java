@@ -1,0 +1,163 @@
+package com.chatbot.saas.service;
+
+import com.chatbot.saas.dto.response.AnalyticsSummaryResponse;
+import com.chatbot.saas.dto.response.DailyOrderCountResponse;
+import com.chatbot.saas.dto.response.OrderResponse;
+import com.chatbot.saas.entity.Business;
+import com.chatbot.saas.entity.Customer;
+import com.chatbot.saas.entity.Order;
+import com.chatbot.saas.entity.Product;
+import com.chatbot.saas.exception.OrderNotFoundException;
+import com.chatbot.saas.repository.OrderRepository;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.math.BigDecimal;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.util.List;
+import java.util.Optional;
+import java.util.stream.Collectors;
+
+@Service
+@RequiredArgsConstructor
+@Slf4j
+public class OrderService {
+
+    private final OrderRepository orderRepository;
+    private final PaymentService paymentService;
+
+    @Transactional
+    public Order createOrder(Business business, Customer customer, Product product, int quantity,
+                             String customerName, String phone, String address,
+                             Order.Platform platform) {
+        if (quantity < 1) {
+            throw new IllegalArgumentException("Quantity must be at least 1");
+        }
+        Order order = Order.builder()
+                .business(business)
+                .customer(customer)
+                .product(product)
+                .productName(product.getName())
+                .unitPrice(product.getPrice())
+                .quantity(quantity)
+                .totalAmount(product.getPrice().multiply(BigDecimal.valueOf(quantity)))
+                .customerName(customerName)
+                .phone(phone)
+                .address(address)
+                .status(Order.Status.PENDING)
+                .platform(platform)
+                .build();
+        Order saved = orderRepository.save(order);
+        log.info("Order {} created for business {} customer {}", saved.getId(), business.getId(), customer.getId());
+        return saved;
+    }
+
+    @Transactional(readOnly = true)
+    public Page<OrderResponse> getOrdersByBusiness(Long businessId, String status, Long customerId, int page, int size) {
+        Pageable pageable = PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "createdAt"));
+        Order.Status orderStatus = status != null ? Order.Status.valueOf(status.toUpperCase()) : null;
+        Page<Order> orders;
+        if (customerId != null) {
+            // Scoped by business too, so another shop's customer id just matches nothing
+            orders = orderStatus != null
+                    ? orderRepository.findAllByBusinessIdAndCustomerIdAndStatus(businessId, customerId, orderStatus, pageable)
+                    : orderRepository.findAllByBusinessIdAndCustomerId(businessId, customerId, pageable);
+        } else {
+            orders = orderStatus != null
+                    ? orderRepository.findAllByBusinessIdAndStatus(businessId, orderStatus, pageable)
+                    : orderRepository.findAllByBusinessId(businessId, pageable);
+        }
+        return orders.map(OrderResponse::from);
+    }
+
+    /** The customer's latest order with delivery details, to offer them again on the next order. */
+    @Transactional(readOnly = true)
+    public Optional<Order> findLatestDeliveryDetails(Long customerId) {
+        return orderRepository.findFirstByCustomerIdAndCustomerNameIsNotNullAndPhoneIsNotNullAndAddressIsNotNullOrderByCreatedAtDesc(customerId);
+    }
+
+    /** How long after ordering a customer's message is answered with that order's status. */
+    static final int OPEN_ORDER_DAYS = 7;
+
+    /** The customer's latest order that is still being handled (new or confirmed) and recent. */
+    @Transactional(readOnly = true)
+    public Optional<Order> findRecentOpenOrder(Long customerId) {
+        return orderRepository.findFirstByCustomerIdAndStatusInAndCreatedAtAfterOrderByCreatedAtDesc(
+                customerId, List.of(Order.Status.PENDING, Order.Status.CONFIRMED),
+                LocalDateTime.now().minusDays(OPEN_ORDER_DAYS));
+    }
+
+    @Transactional(readOnly = true)
+    public OrderResponse getOrderById(Long businessId, Long orderId) {
+        Order order = orderRepository.findByIdAndBusinessId(orderId, businessId)
+                .orElseThrow(() -> new OrderNotFoundException(orderId));
+        return OrderResponse.from(order);
+    }
+
+    @Transactional
+    public OrderResponse updateOrderStatus(Long businessId, Long orderId, String statusStr) {
+        // Locked: a QPay callback recording the payment at the same time must not be
+        // overwritten by this update's stale copy of the payment fields
+        Order order = orderRepository.findByIdForUpdate(orderId)
+                .filter(o -> o.getBusiness().getId().equals(businessId))
+                .orElseThrow(() -> new OrderNotFoundException(orderId));
+        Order.Status newStatus = Order.Status.valueOf(statusStr.toUpperCase());
+        if (newStatus == Order.Status.CANCELLED) {
+            paymentService.cancelPendingInvoice(order);
+        }
+        order.setStatus(newStatus);
+        return OrderResponse.from(orderRepository.save(order));
+    }
+
+    @Transactional(readOnly = true)
+    public List<Order> getOrdersForExport(Long businessId, LocalDateTime from, LocalDateTime to) {
+        return orderRepository.findAllByBusinessIdAndCreatedAtBetween(businessId, from, to);
+    }
+
+    @Transactional(readOnly = true)
+    public AnalyticsSummaryResponse getSummary(Long businessId) {
+        long total = orderRepository.countByBusinessId(businessId);
+        long pending = orderRepository.countByBusinessIdAndStatus(businessId, Order.Status.PENDING);
+        LocalDateTime startOfToday = LocalDate.now().atStartOfDay();
+        long today = orderRepository.countByBusinessIdAndCreatedAtBetween(businessId, startOfToday, LocalDateTime.now());
+
+        Pageable top5 = PageRequest.of(0, 5);
+        List<Object[]> topRaw = orderRepository.findTopProductsByBusiness(businessId, top5);
+        List<AnalyticsSummaryResponse.TopProductResponse> topProducts = topRaw.stream()
+                .map(row -> AnalyticsSummaryResponse.TopProductResponse.builder()
+                        .productName((String) row[0])
+                        .orderCount(((Number) row[1]).longValue())
+                        .totalQuantity(((Number) row[2]).longValue())
+                        .build())
+                .collect(Collectors.toList());
+
+        return AnalyticsSummaryResponse.builder()
+                .totalOrders(total)
+                .pendingOrders(pending)
+                .todayOrders(today)
+                .totalRevenue(orderRepository.sumRevenueByBusinessId(businessId))
+                .paidRevenue(orderRepository.sumPaidByBusinessId(businessId))
+                .awaitingPaymentOrders(orderRepository.countByBusinessIdAndPaymentStatusAndStatusNot(
+                        businessId, Order.PaymentStatus.PENDING, Order.Status.CANCELLED))
+                .topProducts(topProducts)
+                .build();
+    }
+
+    @Transactional(readOnly = true)
+    public List<DailyOrderCountResponse> getOrdersByDay(Long businessId, LocalDateTime from, LocalDateTime to) {
+        List<Object[]> raw = orderRepository.countOrdersByDay(businessId, from, to);
+        return raw.stream()
+                .map(row -> DailyOrderCountResponse.builder()
+                        .day(((java.sql.Date) row[0]).toLocalDate())
+                        .count(((Number) row[1]).longValue())
+                        .build())
+                .collect(Collectors.toList());
+    }
+}
