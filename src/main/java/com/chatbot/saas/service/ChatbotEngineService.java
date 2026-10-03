@@ -13,6 +13,7 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
@@ -26,6 +27,11 @@ import java.util.stream.IntStream;
  *        → COLLECT_NAME → COLLECT_PHONE → COLLECT_ADDRESS → ORDER_SAVED
  *   AWAITING_CONFIRMATION → AWAITING_CATEGORY (user says no)
  *   any state → AWAITING_CATEGORY on a restart keyword (e.g. "цэс" / "menu")
+ *   IDLE → POST_ORDER when the customer still has an open order: they get its status once,
+ *        then the bot stays quiet until they ask for the menu (or a person)
+ *
+ * Input the bot can't use gets a short hint first; on the second miss in a row it offers a
+ * person ("оператор") and shows the choices again, after that only the offer.
  *
  * If the shop connected QPay, the order confirmation carries a QPay payment link.
  *
@@ -38,6 +44,7 @@ import java.util.stream.IntStream;
 public class ChatbotEngineService {
 
     private static final String MONGOLIAN_PHONE_REGEX = "^\\d{8}$";
+    private static final String HUMAN_HINT = "Асуулт байвал \"оператор\" гэж бичээрэй.";
     private static final Set<String> RESTART_KEYWORDS = Set.of("цэс", "эхлэх", "дахин", "menu", "start", "restart");
     static final int MAX_QUANTITY = 99;
     private static final int QUANTITY_SHORTCUTS = 5;
@@ -79,7 +86,7 @@ public class ChatbotEngineService {
         }
 
         switch (state) {
-            case IDLE -> showCategories(chat);
+            case IDLE -> greet(chat);
             case AWAITING_CATEGORY -> handleAwaitingCategory(chat, input);
             case AWAITING_PRODUCT -> handleAwaitingProduct(chat, input);
             case AWAITING_QUANTITY -> handleAwaitingQuantity(chat, input);
@@ -87,6 +94,7 @@ public class ChatbotEngineService {
             case COLLECT_NAME -> handleCollectName(chat, input);
             case COLLECT_PHONE -> handleCollectPhone(chat, input);
             case COLLECT_ADDRESS -> handleCollectAddress(chat, input);
+            case POST_ORDER -> log.debug("Conversation {} already got its order status; waiting for \"цэс\"", conversation.getId());
             default -> log.warn("Conversation {} in terminal state {}, ignoring input", conversation.getId(), state);
         }
     }
@@ -101,8 +109,7 @@ public class ChatbotEngineService {
         }
         Integer choice = parseChoice(userInput);
         if (choice == null || choice < 1 || choice > categories.size()) {
-            reply(chat, "Буруу дугаар оруулсан байна. Доорх жагсаалтаас дугаараа бичнэ үү:");
-            showCategories(chat);
+            rejectInput(chat, userInput, numberRange(categories.size()), () -> showCategories(chat));
             return;
         }
         chat.conversation().setSelectedCategory(categories.get(choice - 1));
@@ -123,14 +130,13 @@ public class ChatbotEngineService {
                 conversation.getBusiness().getId(), category.getId());
 
         if (products.isEmpty()) {
-            reply(chat, "Энэ ангиллд бараа байхгүй байна. Буцаж ангилал сонгоно уу (1):");
+            reply(chat, "Энэ ангилалд одоогоор бараа алга. Өөр ангилал сонгоно уу:");
             showCategories(chat);
             return;
         }
         Integer choice = parseChoice(userInput);
         if (choice == null || choice < 1 || choice > products.size()) {
-            reply(chat, "Буруу дугаар. Доорх жагсаалтаас дугаараа бичнэ үү:");
-            showProducts(chat);
+            rejectInput(chat, userInput, numberRange(products.size()), () -> showProducts(chat));
             return;
         }
         conversation.setSelectedProduct(products.get(choice - 1));
@@ -141,7 +147,7 @@ public class ChatbotEngineService {
     private void handleAwaitingQuantity(Chat chat, String userInput) {
         Integer quantity = parseChoice(userInput);
         if (quantity == null || quantity < 1 || quantity > MAX_QUANTITY) {
-            reply(chat, "Тоо ширхэгээ 1-" + MAX_QUANTITY + " хооронд тоогоор бичнэ үү:");
+            rejectInput(chat, userInput, "Тоо ширхэгээ 1–" + MAX_QUANTITY + " хооронд тоогоор", () -> askQuantity(chat));
             return;
         }
         chat.conversation().setSelectedQuantity(quantity);
@@ -165,35 +171,35 @@ public class ChatbotEngineService {
             reply(chat, "Буцаж ангилал сонгоно уу:");
             showCategories(chat);
         } else {
-            reply(chat, "1 (Тийм) эсвэл 0 (Буцах) гэж оруулна уу:");
+            rejectInput(chat, userInput, "1 (Тийм) эсвэл 0 (Буцах) гэж", () -> showConfirmation(chat));
         }
     }
 
     private void handleCollectName(Chat chat, String userInput) {
         if (!StringUtils.hasText(userInput)) {
-            reply(chat, "Нэрийг хоосон орхиж болохгүй. Дахин оруулна уу:");
+            reply(chat, "Нэрээ бичнэ үү:");
             return;
         }
         chat.conversation().setCollectedName(userInput.trim());
         saveState(chat.conversation(), Conversation.State.COLLECT_PHONE);
-        reply(chat, "Утасны дугаараа оруулна уу (8 оронтой):");
+        reply(chat, "Утасны дугаараа бичнэ үү (8 оронтой):");
     }
 
     private void handleCollectPhone(Chat chat, String userInput) {
-        String phone = userInput.trim().replaceAll("\\s", "");
-        if (!phone.matches(MONGOLIAN_PHONE_REGEX)) {
-            reply(chat, "Утасны дугаар 8 оронтой байх ёстой. Дахин оруулна уу:");
+        String phone = normalizePhone(userInput);
+        if (phone == null) {
+            reply(chat, "Утасны дугаараа 8 оронтойгоор бичнэ үү (жишээ нь 9911 2233):");
             return;
         }
         chat.conversation().setCollectedPhone(phone);
         saveState(chat.conversation(), Conversation.State.COLLECT_ADDRESS);
-        reply(chat, "Хүргэлтийн хаягаа оруулна уу:");
+        reply(chat, "Хүргэлтийн хаягаа бичнэ үү (дүүрэг, хороо, байр, тоот):");
     }
 
     private void handleCollectAddress(Chat chat, String userInput) {
         Conversation conversation = chat.conversation();
         if (!StringUtils.hasText(userInput)) {
-            reply(chat, "Хаягаа оруулна уу:");
+            reply(chat, "Хүргэлтийн хаягаа бичнэ үү:");
             return;
         }
         conversation.setCollectedAddress(userInput.trim());
@@ -222,22 +228,25 @@ public class ChatbotEngineService {
         saveState(conversation, Conversation.State.ORDER_SAVED);
 
         String paymentUrl = paymentService.requestPayment(order);
-        String closing = paymentUrl != null
-                ? "💳 Төлбөрөө QPay-ээр доорх холбоосоор төлнө үү:\n" + paymentUrl
-                : "Бид тантай удахгүй холбогдоно. Баярлалаа! 🙏";
+        String nextStep = paymentUrl != null
+                ? "💳 Төлбөрөө QPay-ээр доорх холбоосоор төлнө үү:\n" + paymentUrl + "\nТөлбөр орсны дараа бид танд мэдэгдэнэ."
+                : "Бид тантай удахгүй холбогдож хүргэлтийг тохиролцоно. Баярлалаа! 🙏";
         reply(chat, String.format(
-                "✅ Таны захиалга амжилттай бүртгэгдлээ!\n" +
-                "📦 Бүтээгдэхүүн: %s × %d\n" +
-                "💰 Нийт үнэ: %s\n" +
-                "📞 Утас: %s\n" +
-                "📍 Хаяг: %s\n" +
+                "✅ Захиалга #%d бүртгэгдлээ!\n" +
+                "📦 %s × %d — %s\n" +
+                "👤 %s · 📞 %s\n" +
+                "📍 %s\n\n" +
+                "%s\n" +
                 "%s",
+                order.getId(),
                 order.getProductName(),
                 order.getQuantity(),
                 formatPrice(order.getTotalAmount()),
+                conversation.getCollectedName(),
                 conversation.getCollectedPhone(),
                 conversation.getCollectedAddress(),
-                closing
+                nextStep,
+                HUMAN_HINT
         ));
 
         // Async notification to business
@@ -246,6 +255,35 @@ public class ChatbotEngineService {
     }
 
     // ─── Menu Builders ────────────────────────────────────────────────────────
+
+    /**
+     * First message of a conversation. A customer whose earlier order is still open most likely
+     * writes about it ("баярлалаа", "хэзээ ирэх вэ?"), so they get that order's status instead
+     * of the whole menu again.
+     */
+    private void greet(Chat chat) {
+        Conversation conversation = chat.conversation();
+        Optional<Order> open = conversation.getCustomer().getId() != null
+                ? orderService.findRecentOpenOrder(conversation.getCustomer().getId())
+                : Optional.empty();
+        if (open.isEmpty()) {
+            showCategories(chat);
+            return;
+        }
+        Order order = open.get();
+        StringBuilder text = new StringBuilder(String.format(
+                "Сайн байна уу! Таны #%d захиалга (%s × %d) %s.",
+                order.getId(), order.getProductName(), order.getQuantity(),
+                order.getStatus() == Order.Status.CONFIRMED ? "баталгаажсан" : "бүртгэгдсэн, шалгагдаж байна"));
+        if (order.getPaymentStatus() == Order.PaymentStatus.PAID) {
+            text.append("\nТөлбөр төлөгдсөн ✅");
+        } else if (order.getPaymentStatus() == Order.PaymentStatus.PENDING && StringUtils.hasText(order.getPaymentUrl())) {
+            text.append("\n💳 Төлбөр хүлээгдэж байна:\n").append(order.getPaymentUrl());
+        }
+        text.append("\n\nШинээр захиалах бол \"цэс\", ажилтантай холбогдох бол \"оператор\" гэж бичнэ үү.");
+        saveState(conversation, Conversation.State.POST_ORDER);
+        reply(chat, text.toString());
+    }
 
     private void showCategories(Chat chat) {
         List<Category> categories = categoryService.getActiveCategories(chat.conversation().getBusiness().getId());
@@ -263,7 +301,7 @@ public class ChatbotEngineService {
         List<Product> products = productService.getActiveProductsByCategory(
                 chat.conversation().getBusiness().getId(), category.getId());
         if (products.isEmpty()) {
-            reply(chat, "Энэ ангиллд бараа байхгүй байна.");
+            reply(chat, "Энэ ангилалд одоогоор бараа алга.");
             return;
         }
         Map<UUID, String> imageUrls = mediaService.imageUrls(products.stream().map(Product::getImageFileId).toList());
@@ -309,6 +347,52 @@ public class ChatbotEngineService {
 
     // ─── Helpers ─────────────────────────────────────────────────────────────
 
+    /**
+     * Input the current step can't use. The first miss gets a short hint (the list is just
+     * above); the second offers a person and repeats the choices; after that only the offer,
+     * so a customer who keeps asking questions isn't flooded with menus.
+     *
+     * @param expected what to send, completing "… бичнэ үү" (e.g. "1–3 хооронд дугаар")
+     */
+    private void rejectInput(Chat chat, String input, String expected, Runnable showChoicesAgain) {
+        Conversation conversation = chat.conversation();
+        int misses = conversation.getInvalidAttempts() + 1;
+        conversation.setInvalidAttempts(misses);
+        conversation.setUpdatedAt(LocalDateTime.now());
+        conversationRepository.save(conversation);
+
+        if (misses == 1) {
+            reply(chat, parseChoice(input) != null
+                    ? "Ийм дугаар байхгүй байна. " + expected + " бичнэ үү."
+                    : "Уучлаарай, би зөвхөн дугаараар захиалга авдаг 🙂 " + expected + " бичнэ үү. " + HUMAN_HINT);
+        } else if (misses == 2) {
+            reply(chat, "Уучлаарай, ойлгосонгүй. Манай ажилтантай холбогдох бол \"оператор\", "
+                    + "эхнээс нь эхлэх бол \"цэс\" гэж бичнэ үү. Эсвэл доороос сонгоорой:");
+            showChoicesAgain.run();
+        } else {
+            reply(chat, "Манай ажилтантай холбогдох бол \"оператор\", цэс харах бол \"цэс\" гэж бичнэ үү.");
+        }
+    }
+
+    private static String numberRange(int count) {
+        return (count == 1 ? "1" : "1–" + count + " хооронд") + " дугаар";
+    }
+
+    /**
+     * Accepts the ways people write Mongolian numbers - "9911 2233", "9911-2233", "+976 99112233"
+     * - and returns the bare 8 digits, or null if it isn't one.
+     */
+    static String normalizePhone(String input) {
+        if (input == null) return null;
+        String digits = input.trim().replaceAll("[\\s\\-().]", "");
+        if (digits.startsWith("+976")) {
+            digits = digits.substring(4);
+        } else if (digits.startsWith("976") && digits.length() == 11) {
+            digits = digits.substring(3);
+        }
+        return digits.matches(MONGOLIAN_PHONE_REGEX) ? digits : null;
+    }
+
     private void reply(Chat chat, String text) {
         String messageId = metaReplyService.sendText(chat.senderId(), text, chat.token());
         messageLogService.recordOutbound(chat.conversation(), messageId, text);
@@ -345,12 +429,16 @@ public class ChatbotEngineService {
     }
 
     private void resetSelections(Conversation conversation) {
+        conversation.setInvalidAttempts(0);
         conversation.setSelectedCategory(null);
         conversation.setSelectedProduct(null);
         conversation.setSelectedQuantity(null);
     }
 
     private void saveState(Conversation conversation, Conversation.State newState) {
+        if (conversation.getState() != newState) {
+            conversation.setInvalidAttempts(0); // a new step starts with a clean slate
+        }
         conversation.setState(newState);
         conversation.setUpdatedAt(LocalDateTime.now());
         conversationRepository.save(conversation);

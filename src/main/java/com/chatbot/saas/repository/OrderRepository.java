@@ -11,6 +11,7 @@ import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.time.LocalDateTime;
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 
@@ -26,6 +27,9 @@ public interface OrderRepository extends JpaRepository<Order, Long> {
     Page<Order> findAllByBusinessIdAndCustomerIdAndStatus(Long businessId, Long customerId, Order.Status status, Pageable pageable);
 
     Optional<Order> findByIdAndBusinessId(Long id, Long businessId);
+
+    Optional<Order> findFirstByCustomerIdAndStatusInAndCreatedAtAfterOrderByCreatedAtDesc(
+            Long customerId, Collection<Order.Status> statuses, LocalDateTime after);
 
     Optional<Order> findFirstByCustomerIdAndCustomerNameIsNotNullOrderByIdDesc(Long customerId);
 

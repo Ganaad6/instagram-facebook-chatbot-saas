@@ -204,7 +204,7 @@ class PaymentIntegrationTest {
 
         assertEquals(Order.PaymentStatus.NOT_REQUESTED, order.getPaymentStatus());
         verify(qpayClient, never()).createInvoice(any(), anyString(), anyString(), any(), anyString());
-        verify(metaReplyService).sendText(eq(psid), contains("удахгүй холбогдоно"), anyString());
+        verify(metaReplyService).sendText(eq(psid), contains("удахгүй холбогдож"), anyString());
     }
 
     @Test
@@ -216,7 +216,7 @@ class PaymentIntegrationTest {
         Order order = placeOrder();
 
         assertEquals(Order.PaymentStatus.NOT_REQUESTED, order.getPaymentStatus());
-        verify(metaReplyService).sendText(eq(psid), contains("удахгүй холбогдоно"), anyString());
+        verify(metaReplyService).sendText(eq(psid), contains("удахгүй холбогдож"), anyString());
     }
 
     @Test

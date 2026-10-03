@@ -22,6 +22,7 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Optional;
 import java.util.stream.Collectors;
 
 @Service
@@ -74,6 +75,17 @@ public class OrderService {
                     : orderRepository.findAllByBusinessId(businessId, pageable);
         }
         return orders.map(OrderResponse::from);
+    }
+
+    /** How long after ordering a customer's message is answered with that order's status. */
+    static final int OPEN_ORDER_DAYS = 7;
+
+    /** The customer's latest order that is still being handled (new or confirmed) and recent. */
+    @Transactional(readOnly = true)
+    public Optional<Order> findRecentOpenOrder(Long customerId) {
+        return orderRepository.findFirstByCustomerIdAndStatusInAndCreatedAtAfterOrderByCreatedAtDesc(
+                customerId, List.of(Order.Status.PENDING, Order.Status.CONFIRMED),
+                LocalDateTime.now().minusDays(OPEN_ORDER_DAYS));
     }
 
     @Transactional(readOnly = true)

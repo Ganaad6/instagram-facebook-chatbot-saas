@@ -27,6 +27,8 @@ public class Conversation {
         COLLECT_PHONE,
         COLLECT_ADDRESS,
         ORDER_SAVED,
+        /** Customer wrote again while an earlier order is still open; they got its status once. */
+        POST_ORDER,
         CANCELLED
     }
 
@@ -61,6 +63,11 @@ public class Conversation {
 
     @Column(name = "selected_quantity")
     private Integer selectedQuantity;
+
+    /** Replies in a row the bot could not understand at the current step. */
+    @Column(name = "invalid_attempts", nullable = false)
+    @Builder.Default
+    private int invalidAttempts = 0;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "order_id")

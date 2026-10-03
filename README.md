@@ -235,6 +235,14 @@ All settings are environment variables (see `.env.example` for a commented templ
 - If the shop deactivates a product mid-conversation, the customer is told it's sold out and
   sent back to the menu instead of the order being placed.
 - Product photos (uploaded in the dashboard) are sent just before the product menu.
+- Input the bot can't use (a question instead of a number) gets a short hint first. On the
+  second miss in a row the bot suggests **оператор** (a person) or **цэс** and shows the choices
+  again; after that it only repeats the suggestion instead of the menu.
+- The order confirmation carries the order number, the QPay link if any, and how to reach a
+  person. A customer who writes again while an order from the last 7 days is still new or
+  confirmed gets that order's status (and unpaid QPay link) once, not the menu; the bot then
+  stays quiet until they type **цэс** or **оператор**.
+- Phone numbers are accepted as `9911 2233`, `9911-2233` or `+976 99112233` and stored as 8 digits.
 
 ### Human handoff
 
