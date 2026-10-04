@@ -2,6 +2,7 @@ import { Navigate, Route, Routes, useLocation } from 'react-router-dom';
 import { useAuth } from './auth';
 import { Layout } from './components/Layout';
 import { Spinner } from './components/ui';
+import { AdminPage } from './pages/AdminPage';
 import { InvitePage, LoginPage, SignupPage } from './pages/AuthPages';
 import { ChatsPage } from './pages/ChatsPage';
 import { OrdersPage } from './pages/OrdersPage';
@@ -24,6 +25,7 @@ export function App() {
       <Route path="/login" element={<LoginPage />} />
       <Route path="/signup" element={<SignupPage />} />
       <Route path="/invite/:token" element={<InvitePage />} />
+      <Route path="/admin" element={<AdminPage />} />
       <Route element={<RequireAuth />}>
         <Route index element={<OverviewPage />} />
         <Route path="/orders" element={<OrdersPage />} />

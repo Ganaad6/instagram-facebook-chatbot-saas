@@ -320,6 +320,37 @@ class DashboardAuthIntegrationTest {
     }
 
     @Test
+    void adminSeesEveryLoginWithItsShop() throws Exception {
+        Shop shop = signup();
+        Cookie[] ownerCookies = shop.owner().cookies.entrySet().stream()
+                .map(e -> new Cookie(e.getKey(), e.getValue())).toArray(Cookie[]::new);
+
+        // The /admin page may run in a browser that is also signed in to a shop
+        MockHttpServletResponse response = mockMvc.perform(MockMvcRequestBuilders.get("/api/admin/users")
+                        .cookie(ownerCookies)
+                        .with(SecurityMockMvcRequestPostProcessors.httpBasic("admin", "test_admin_password")))
+                .andReturn().getResponse();
+        assertEquals(200, response.getStatus());
+        JsonNode owner = null;
+        for (JsonNode user : objectMapper.readTree(response.getContentAsString(StandardCharsets.UTF_8))) {
+            if (shop.ownerEmail().equals(user.get("email").asText())) {
+                owner = user;
+            }
+        }
+        assertNotNull(owner);
+        assertEquals("OWNER", owner.get("role").asText());
+        assertEquals(shop.businessId(), owner.get("businessId").asLong());
+        assertEquals("Цэцэг дэлгүүр", owner.get("businessName").asText());
+        assertFalse(owner.get("invitePending").asBoolean());
+        assertFalse(owner.has("passwordHash"));
+
+        assertEquals(403, shop.owner().status(HttpMethod.GET, "/api/admin/users", null));
+        assertEquals(401, mockMvc.perform(MockMvcRequestBuilders.get("/api/admin/users")
+                .with(SecurityMockMvcRequestPostProcessors.httpBasic("admin", "wrong password")))
+                .andReturn().getResponse().getStatus());
+    }
+
+    @Test
     void signupRejectsWeakPasswordsAndTakenEmails() throws Exception {
         Shop shop = signup();
 

@@ -1,5 +1,6 @@
 package com.chatbot.saas.service;
 
+import com.chatbot.saas.dto.response.AdminUserResponse;
 import com.chatbot.saas.dto.response.StaffUserResponse;
 import com.chatbot.saas.entity.Business;
 import com.chatbot.saas.entity.StaffToken;
@@ -12,6 +13,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 
@@ -32,6 +34,15 @@ public class StaffService {
     public List<StaffUserResponse> list(Long businessId) {
         return staffUserRepository.findAllByBusinessIdOrderByIdAsc(businessId).stream()
                 .map(StaffUserResponse::from)
+                .toList();
+    }
+
+    /** Every login of every shop, newest first - for the platform admin. */
+    @Transactional(readOnly = true)
+    public List<AdminUserResponse> listAll() {
+        LocalDateTime now = LocalDateTime.now();
+        return staffUserRepository.findAllWithBusiness().stream()
+                .map(user -> AdminUserResponse.from(user, now))
                 .toList();
     }
 

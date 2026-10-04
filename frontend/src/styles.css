@@ -472,6 +472,12 @@ span.chip { padding: 0; overflow: hidden; }
 .auth-brand { display: flex; align-items: center; gap: 10px; font-weight: 800; color: var(--text-2); }
 .auth-footer { color: var(--muted); font-size: 14px; }
 
+/* ─── Admin ─────────────────────────────────────────────── */
+.admin-page { max-width: 1240px; margin: 0 auto; padding: 28px 32px 48px; }
+.admin-search { width: min(420px, 100%); margin-bottom: 16px; }
+.admin-users-table td { white-space: nowrap; }
+.admin-users-table td:first-child { white-space: normal; overflow-wrap: anywhere; }
+
 /* ─── Narrower screens ──────────────────────────────────── */
 @media (max-width: 1280px) {
   .customer-panel { display: none; }
@@ -519,6 +525,14 @@ span.chip { padding: 0; overflow: hidden; }
   .orders-table td { border: 0; padding: 2px 0; text-align: left; }
   .orders-table td.num { text-align: left; }
   .orders-table td[data-label="Огноо"] { position: absolute; top: 12px; right: 16px; }
+
+  .admin-page { padding: 16px; }
+  .admin-users-table thead { display: none; }
+  .admin-users-table, .admin-users-table tbody, .admin-users-table tr, .admin-users-table td { display: block; }
+  .admin-users-table tr { padding: 12px 16px; border-bottom: 1px solid var(--border); }
+  .admin-users-table td { border: 0; padding: 2px 0; white-space: normal; }
+  .admin-users-table td[data-label="Сүүлд нэвтэрсэн"]::before { content: 'Сүүлд: '; color: var(--muted); }
+  .admin-users-table td[data-label="Бүртгүүлсэн"]::before { content: 'Бүртгүүлсэн: '; color: var(--muted); }
 
   .chat-list { width: 100%; border-right: 0; }
   .chats.has-selection .chat-list { display: none; }

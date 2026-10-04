@@ -14,6 +14,15 @@ export interface StaffUser {
   createdAt: string;
 }
 
+/** A dashboard login of any shop, as the platform admin sees it. */
+export interface AdminUser extends StaffUser {
+  locked: boolean;
+  lockedUntil: string | null;
+  businessId: number;
+  businessName: string;
+  businessStatus: 'ACTIVE' | 'INACTIVE';
+}
+
 export interface Business {
   id: number;
   name: string;

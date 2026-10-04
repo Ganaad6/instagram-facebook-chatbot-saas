@@ -18,6 +18,9 @@ public interface StaffUserRepository extends JpaRepository<StaffUser, Long> {
     @Query("SELECT u FROM StaffUser u JOIN FETCH u.business WHERE u.id = :id")
     Optional<StaffUser> findWithBusinessById(@Param("id") Long id);
 
+    @Query("SELECT u FROM StaffUser u JOIN FETCH u.business ORDER BY u.createdAt DESC, u.id DESC")
+    List<StaffUser> findAllWithBusiness();
+
     List<StaffUser> findAllByBusinessIdOrderByIdAsc(Long businessId);
 
     Optional<StaffUser> findByIdAndBusinessId(Long id, Long businessId);

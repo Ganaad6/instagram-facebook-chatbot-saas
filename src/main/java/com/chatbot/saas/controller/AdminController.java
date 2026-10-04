@@ -16,8 +16,8 @@ import java.util.Map;
 
 /**
  * Operator-only endpoints for onboarding and lifecycle management of tenant businesses.
- * Protected by HTTP Basic auth (ROLE_ADMIN) - see SecurityConfig. There is no admin UI (the
- * dashboard is for shops), so this is used directly (e.g. via curl) as part of the
+ * Protected by HTTP Basic auth (ROLE_ADMIN) - see SecurityConfig. The dashboard's /admin page only
+ * lists users (AdminUserController), so these are used directly (e.g. via curl) as part of the
  * manual-billing workflow: suspend a business on non-payment, re-activate once paid, rotate a
  * leaked API key, send an owner their dashboard login link.
  */
