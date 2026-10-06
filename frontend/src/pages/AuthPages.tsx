@@ -18,6 +18,9 @@ function AuthCard({ title, subtitle, children, footer }: {
         {children}
       </div>
       {footer && <div className="auth-footer">{footer}</div>}
+      <div className="auth-footer small">
+        <Link to="/privacy">Нууцлалын бодлого</Link> · <Link to="/terms">Үйлчилгээний нөхцөл</Link> · <Link to="/data-deletion">Мэдээлэл устгах</Link>
+      </div>
     </div>
   );
 }

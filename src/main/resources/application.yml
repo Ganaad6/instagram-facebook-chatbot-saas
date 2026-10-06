@@ -95,6 +95,12 @@ auth:
   invite-ttl-hours: ${AUTH_INVITE_TTL_HOURS:72}
   reset-ttl-hours: ${AUTH_RESET_TTL_HOURS:24}
 
+legal:
+  # Shown on the public /privacy, /terms and /data-deletion pages (Meta App Review requires them)
+  operator-name: ${LEGAL_OPERATOR_NAME:}
+  contact-email: ${LEGAL_CONTACT_EMAIL:}
+  policy-updated: ${LEGAL_POLICY_UPDATED:2026-10-06}
+
 directus:
   public-url: ${DIRECTUS_PUBLIC_URL:}
 

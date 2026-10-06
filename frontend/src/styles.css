@@ -471,6 +471,24 @@ span.chip { padding: 0; overflow: hidden; }
 .auth-card > p { margin-bottom: 18px; }
 .auth-brand { display: flex; align-items: center; gap: 10px; font-weight: 800; color: var(--text-2); }
 .auth-footer { color: var(--muted); font-size: 14px; }
+.auth-footer.small { font-size: 13px; }
+
+.legal-page { min-height: 100vh; background: var(--surface-3); padding: 24px 16px 40px; }
+.legal-header, .legal-body, .legal-footer { max-width: 760px; margin: 0 auto; }
+.legal-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-bottom: 16px; }
+.legal-header .auth-brand:hover { text-decoration: none; }
+.legal-lang { display: inline-flex; border: 1px solid var(--border-strong); border-radius: var(--radius-small); overflow: hidden; }
+.legal-lang button { border: 0; background: var(--surface); color: var(--text-2); padding: 6px 12px; font: inherit; font-size: 13px; cursor: pointer; }
+.legal-lang button.active { background: var(--accent); color: #fff; font-weight: 700; }
+.legal-body { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-card); padding: 28px 32px; box-shadow: var(--shadow-xs); overflow-wrap: anywhere; }
+.legal-body h1 { margin: 0 0 4px; font-size: 26px; }
+.legal-body h2 { margin: 26px 0 8px; font-size: 18px; }
+.legal-body h3 { margin: 16px 0 6px; font-size: 15px; color: var(--text-2); }
+.legal-body p, .legal-body li { color: var(--text-2); }
+.legal-body ul, .legal-body ol { padding-left: 22px; display: grid; gap: 6px; }
+.legal-status { margin: 16px 0; padding: 12px 14px; border-radius: var(--radius); background: var(--accent-soft); display: grid; gap: 4px; }
+.legal-footer { display: flex; gap: 18px; flex-wrap: wrap; justify-content: center; margin-top: 18px; font-size: 14px; }
+@media (max-width: 600px) { .legal-body { padding: 20px 18px; } }
 
 /* ─── Admin ─────────────────────────────────────────────── */
 .admin-page { max-width: 1240px; margin: 0 auto; padding: 28px 32px 48px; }

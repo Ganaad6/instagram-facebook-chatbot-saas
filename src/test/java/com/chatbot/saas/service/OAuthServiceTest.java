@@ -51,6 +51,7 @@ class OAuthServiceTest {
 
         when(metaGraphClient.exchangeCodeForUserToken("code")).thenReturn("short-token");
         when(metaGraphClient.exchangeForLongLivedUserToken("short-token")).thenReturn("long-token");
+        when(metaGraphClient.fetchUserId("long-token")).thenReturn("fb-user-1");
     }
 
     @Test
@@ -64,6 +65,7 @@ class OAuthServiceTest {
         assertEquals("ig-1", saved.getInstagramAccountId());
         assertEquals("page-token", encryptionUtil.decrypt(saved.getAccessToken()));
         assertNull(saved.getTokenExpiresAt(), "page tokens don't expire");
+        assertEquals("fb-user-1", saved.getMetaUserId(), "deauthorize/data-deletion callbacks find the shop by it");
         verify(metaGraphClient).subscribePageToWebhooks("page-1", "page-token");
     }
 

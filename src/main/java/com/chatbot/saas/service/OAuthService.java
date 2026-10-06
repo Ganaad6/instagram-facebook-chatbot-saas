@@ -77,6 +77,7 @@ public class OAuthService {
 
         business.setFacebookPageId(page.pageId());
         business.setInstagramAccountId(page.instagramAccountId());
+        business.setMetaUserId(metaGraphClient.fetchUserId(longLivedToken));
         business.setAccessToken(encryptionUtil.encrypt(page.pageAccessToken()));
         // Page tokens derived from a long-lived user token don't expire; they're only
         // invalidated if the owner revokes access or changes their password (reconnect then).

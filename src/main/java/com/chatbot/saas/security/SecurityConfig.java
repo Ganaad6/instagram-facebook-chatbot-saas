@@ -109,6 +109,7 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.POST, "/api/auth/login", "/api/auth/signup",
                                 "/api/auth/logout", "/api/auth/links/accept").permitAll()
                         .requestMatchers("/actuator/health").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/public/**").permitAll()
                         // Product photos: Meta fetches them without credentials
                         .requestMatchers(HttpMethod.GET, "/media/*").permitAll()
                         .requestMatchers("/api/admin/**").hasRole("ADMIN")
