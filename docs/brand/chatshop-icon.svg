@@ -5,7 +5,7 @@
       <stop offset="1" stop-color="#1b2f74"/>
     </linearGradient>
   </defs>
-  <rect width="1024" height="1024" rx="224" fill="url(#bg)"/>
+  <rect width="1024" height="1024" fill="url(#bg)"/>
   <!-- speech bubble with a tail at the bottom left -->
   <path d="M292 232 H732 A104 104 0 0 1 836 336 V628 A104 104 0 0 1 732 732 H436 L300 836 L320 732 H292 A104 104 0 0 1 188 628 V336 A104 104 0 0 1 292 232 Z" fill="#ffffff"/>
   <!-- shopping bag -->
