@@ -93,6 +93,19 @@ changes their Facebook password, send them a new connect link.
 - `POST /webhook` - Receive webhook events
 - `GET|POST /webhook/qpay/{orderId}?token=` - QPay payment callback. Always `200 SUCCESS`; the
   payment is only recorded after the app confirms it with QPay. Forged tokens are ignored.
+- `POST /webhook/meta/deauthorize` (form field `signed_request`) - Meta's deauthorize callback:
+  the Facebook user removed the app, so every shop they connected is disconnected (Page token,
+  Page/Instagram ids and their user id are cleared). `400` if `signed_request` isn't signed with
+  `META_APP_SECRET`.
+- `POST /webhook/meta/data-deletion` (form field `signed_request`) - Meta's data-deletion
+  callback: same disconnect, then `{"url": "${BASE_URL}/data-deletion?code=...",
+  "confirmation_code": "..."}`. The shops' catalogs, orders and chats are not deleted.
+
+## Public pages data (no authentication)
+- `GET /api/public/legal` - `{operatorName, contactEmail, address, messageRetentionDays}` for the
+  `/privacy`, `/terms` and `/data-deletion` pages
+- `GET /api/public/data-deletion/{code}` - `{confirmationCode, status: "COMPLETED", completedAt}`,
+  `404` for an unknown code
 
 ## Product photos
 - `POST /api/businesses/{businessId}/media` - multipart field `file`: a JPEG, PNG, WebP or GIF
@@ -160,6 +173,12 @@ All under `/api/businesses/{businessId}`, API key required.
   `CHATBOT_HANDOFF_TIMEOUT_HOURS`, 1-168).
 - `POST /customers/{customerId}/resume-bot` - Hand back to the bot; the unfinished bot
   conversation is abandoned so the customer's next message starts fresh.
+
+- `DELETE /customers/{customerId}` (owner) - Erase the customer's personal data, e.g. when they
+  ask: chat history and conversations deleted; name, phone, address and notes removed from their
+  orders (the orders stay, as sales records); their Meta id dropped, so if they write again they
+  start as a new customer. `204`; cannot be undone. The customer disappears from chats and
+  customer lists, and later calls for them return `404`.
 
 A customer of another business returns `404`. The order-notification webhook also receives
 `{"event": "HANDOFF_REQUESTED", "businessId", "customerId", "platform", "message"}` when a

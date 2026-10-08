@@ -57,6 +57,7 @@ class OAuthServiceTest {
     void singlePageIsConnectedWithPageTokenAndSubscribed() {
         when(metaGraphClient.listPages("long-token"))
                 .thenReturn(List.of(new PageAccount("page-1", "Shop Page", "page-token", "ig-1")));
+        when(metaGraphClient.fetchUserId("long-token")).thenReturn("fb-user-1");
 
         Business saved = oAuthService.handleCallback("code", state);
 
@@ -64,6 +65,7 @@ class OAuthServiceTest {
         assertEquals("ig-1", saved.getInstagramAccountId());
         assertEquals("page-token", encryptionUtil.decrypt(saved.getAccessToken()));
         assertNull(saved.getTokenExpiresAt(), "page tokens don't expire");
+        assertEquals("fb-user-1", saved.getMetaUserId(), "Meta's deletion callbacks name the user by this id");
         verify(metaGraphClient).subscribePageToWebhooks("page-1", "page-token");
     }
 

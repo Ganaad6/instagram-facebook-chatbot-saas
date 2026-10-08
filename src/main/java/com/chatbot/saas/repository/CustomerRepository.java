@@ -16,7 +16,8 @@ public interface CustomerRepository extends JpaRepository<Customer, Long> {
     Optional<Customer> findByBusinessIdAndInstagramUserId(Long businessId, String instagramUserId);
     Optional<Customer> findByBusinessIdAndFacebookUserId(Long businessId, String facebookUserId);
     List<Customer> findAllByBusinessId(Long businessId);
-    org.springframework.data.domain.Page<Customer> findAllByBusinessId(Long businessId, org.springframework.data.domain.Pageable pageable);
+    List<Customer> findAllByBusinessIdAndErasedAtIsNull(Long businessId);
+    org.springframework.data.domain.Page<Customer> findAllByBusinessIdAndErasedAtIsNull(Long businessId, org.springframework.data.domain.Pageable pageable);
     org.springframework.data.domain.Page<Customer> findAllByBusinessIdAndHandoffRequestedAtIsNotNull(Long businessId, org.springframework.data.domain.Pageable pageable);
 
     /**

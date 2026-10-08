@@ -5,6 +5,7 @@ import { Spinner } from './components/ui';
 import { AdminPage } from './pages/AdminPage';
 import { InvitePage, LoginPage, SignupPage } from './pages/AuthPages';
 import { ChatsPage } from './pages/ChatsPage';
+import { DataDeletionPage, PrivacyPage, TermsPage } from './pages/LegalPages';
 import { OrdersPage } from './pages/OrdersPage';
 import { OverviewPage } from './pages/OverviewPage';
 import { ProductsPage } from './pages/ProductsPage';
@@ -26,6 +27,9 @@ export function App() {
       <Route path="/signup" element={<SignupPage />} />
       <Route path="/invite/:token" element={<InvitePage />} />
       <Route path="/admin" element={<AdminPage />} />
+      <Route path="/privacy" element={<PrivacyPage />} />
+      <Route path="/terms" element={<TermsPage />} />
+      <Route path="/data-deletion" element={<DataDeletionPage />} />
       <Route element={<RequireAuth />}>
         <Route index element={<OverviewPage />} />
         <Route path="/orders" element={<OrdersPage />} />

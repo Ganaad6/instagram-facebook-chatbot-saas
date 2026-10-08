@@ -71,6 +71,7 @@ public class OAuthService {
         String shortLivedToken = metaGraphClient.exchangeCodeForUserToken(code);
         String longLivedToken = metaGraphClient.exchangeForLongLivedUserToken(shortLivedToken);
         PageAccount page = selectPage(business, metaGraphClient.listPages(longLivedToken));
+        String metaUserId = metaGraphClient.fetchUserId(longLivedToken);
 
         assertNotLinkedElsewhere(business, page);
         metaGraphClient.subscribePageToWebhooks(page.pageId(), page.pageAccessToken());
@@ -78,6 +79,7 @@ public class OAuthService {
         business.setFacebookPageId(page.pageId());
         business.setInstagramAccountId(page.instagramAccountId());
         business.setAccessToken(encryptionUtil.encrypt(page.pageAccessToken()));
+        business.setMetaUserId(metaUserId);
         // Page tokens derived from a long-lived user token don't expire; they're only
         // invalidated if the owner revokes access or changes their password (reconnect then).
         business.setTokenExpiresAt(null);

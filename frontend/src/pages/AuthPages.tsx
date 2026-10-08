@@ -18,6 +18,10 @@ function AuthCard({ title, subtitle, children, footer }: {
         {children}
       </div>
       {footer && <div className="auth-footer">{footer}</div>}
+      <nav className="auth-footer auth-legal" aria-label="Бодлого">
+        <Link to="/privacy">Нууцлалын бодлого</Link>
+        <Link to="/terms">Үйлчилгээний нөхцөл</Link>
+      </nav>
     </div>
   );
 }
@@ -108,6 +112,10 @@ export function SignupPage() {
           <input type="password" required minLength={8} autoComplete="new-password" value={form.password} onChange={set('password')} />
         </Field>
         {error && <div className="form-error" role="alert">{error}</div>}
+        <p className="muted small">
+          Бүртгүүлснээр та <Link to="/terms">Үйлчилгээний нөхцөл</Link> болон{' '}
+          <Link to="/privacy">Нууцлалын бодлого</Link>-ыг зөвшөөрч байна.
+        </p>
         <button className="btn btn-primary btn-block" disabled={busy}>{busy ? 'Бүртгэж байна…' : 'Бүртгүүлэх'}</button>
       </form>
     </AuthCard>

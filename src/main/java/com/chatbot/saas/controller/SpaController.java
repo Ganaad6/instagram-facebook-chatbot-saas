@@ -19,7 +19,8 @@ public class SpaController {
     private static final Resource INDEX = new ClassPathResource("static/index.html");
 
     @GetMapping({"/", "/login", "/signup", "/invite/{token}", "/orders", "/orders/{id}",
-            "/products", "/chats", "/chats/{id}", "/settings", "/settings/{tab}", "/admin"})
+            "/products", "/chats", "/chats/{id}", "/settings", "/settings/{tab}", "/admin",
+            "/privacy", "/terms", "/data-deletion"})
     public ResponseEntity<Resource> index() {
         if (!INDEX.exists()) {
             // Backend-only build (e.g. mvn -Dskip.frontend)

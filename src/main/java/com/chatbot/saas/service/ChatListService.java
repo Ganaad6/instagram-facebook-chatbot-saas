@@ -36,13 +36,13 @@ public class ChatListService {
         }
         PageRequest pageable = PageRequest.of(page, size,
                 Sort.by(Sort.Order.desc("lastInteractionAt").nullsLast(), Sort.Order.desc("id")));
-        return customerRepository.findAllByBusinessId(businessId, pageable).map(this::summarize);
+        return customerRepository.findAllByBusinessIdAndErasedAtIsNull(businessId, pageable).map(this::summarize);
     }
 
     @Transactional(readOnly = true)
     public ChatSummaryResponse get(Long businessId, Long customerId) {
         return customerRepository.findById(customerId)
-                .filter(c -> c.getBusiness().getId().equals(businessId))
+                .filter(c -> c.getBusiness().getId().equals(businessId) && c.getErasedAt() == null)
                 .map(this::summarize)
                 .orElseThrow(() -> new com.chatbot.saas.exception.CustomerNotFoundException(customerId));
     }

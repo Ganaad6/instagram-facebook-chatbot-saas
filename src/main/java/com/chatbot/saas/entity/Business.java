@@ -36,6 +36,13 @@ public class Business {
     @Column(name = "access_token", columnDefinition = "TEXT")
     private String accessToken;
 
+    /**
+     * App-scoped id of the Facebook user who connected the Page; Meta's deauthorize and
+     * data-deletion callbacks name the person by it.
+     */
+    @Column(name = "meta_user_id")
+    private String metaUserId;
+
     @Column(name = "token_expires_at")
     private LocalDateTime tokenExpiresAt;
 

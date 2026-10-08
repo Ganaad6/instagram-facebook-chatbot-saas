@@ -80,6 +80,20 @@ public class MetaGraphClient {
         return requireText(response, "access_token", "obtain a long-lived user token");
     }
 
+    /** The app-scoped id of the user the token belongs to. */
+    public String fetchUserId(String userToken) {
+        JsonNode response = call(() -> metaWebClient.get()
+                .uri(uriBuilder -> uriBuilder.path("/me").queryParam("fields", "id").build())
+                .headers(h -> h.setBearerAuth(userToken))
+                .retrieve()
+                .bodyToMono(JsonNode.class)
+                .block());
+        if (response == null || !response.hasNonNull("id")) {
+            throw new MetaConnectException("Meta did not return the Facebook user id");
+        }
+        return response.get("id").asText();
+    }
+
     /** Lists the Pages the user granted access to, with each Page's token and linked Instagram account. */
     public List<PageAccount> listPages(String longLivedUserToken) {
         JsonNode response = call(() -> metaWebClient.get()

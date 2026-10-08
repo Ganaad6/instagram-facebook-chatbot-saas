@@ -42,6 +42,8 @@ META_APP_ID=smoke-app-id
 META_APP_SECRET=smoke-app-secret
 WEBHOOK_VERIFY_TOKEN=$(rand 24)
 QPAY_API_URL=https://merchant.qpay.mn/v2
+LEGAL_OPERATOR_NAME=Smoke Test LLC
+LEGAL_CONTACT_EMAIL=privacy@smoke.test
 ENV
 
 step() { printf '\n==> %s\n' "$*"; }
@@ -72,6 +74,10 @@ curl -skI "$BASE/login" | grep -qi "^strict-transport-security:" || fail "missin
 echo "ok  CSP and HSTS headers"
 expect 308 "http redirects to https" -o /dev/null "http://localhost/login"
 expect 401 "API needs sign-in" "$BASE/api/auth/me"
+expect 200 "privacy policy page" "$BASE/privacy"
+curl -sk "$BASE/api/public/legal" | grep -q 'privacy@smoke.test' || fail "legal info missing contact email"
+echo "ok  legal info"
+expect 400 "unsigned Meta data-deletion callback is rejected" -d 'signed_request=forged.payload' "$BASE/webhook/meta/data-deletion"
 expect 401 "admin needs credentials" "$BASE/api/admin/businesses"
 
 step "Sign up a shop through the dashboard API"

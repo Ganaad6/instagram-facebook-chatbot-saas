@@ -73,7 +73,14 @@ scripts/smoke-test.sh --keep   # same, but leaves it running to click around
    `${BASE_URL}/webhook`, verify token `WEBHOOK_VERIFY_TOKEN`, fields `messages`,
    `messaging_postbacks` and `message_echoes` (echoes are how the app notices staff replying
    from the Meta inbox). Each Page a shop connects is subscribed to the app automatically.
-4. Request **Advanced Access** via App Review for `pages_show_list`, `pages_messaging`,
+4. Under **App settings → Basic**, set the **Privacy Policy URL** to `${BASE_URL}/privacy`, the
+   **Terms of Service URL** to `${BASE_URL}/terms` and **User data deletion** to "Data deletion
+   callback URL" `${BASE_URL}/webhook/meta/data-deletion`. Under **Facebook Login → Settings**,
+   set the **Deauthorize callback URL** to `${BASE_URL}/webhook/meta/deauthorize`. The pages
+   show `LEGAL_OPERATOR_NAME` / `LEGAL_CONTACT_EMAIL` / `LEGAL_ADDRESS`; the policy and terms
+   texts are in `frontend/src/pages/LegalPages.tsx` - have them reviewed for your business
+   before launch.
+5. Request **Advanced Access** via App Review for `pages_show_list`, `pages_messaging`,
    `pages_manage_metadata`, `instagram_basic` and `instagram_manage_messages`, plus the
    **Human Agent** feature if staff will reply more than 24 hours after a customer's last
    message. Until approved, only people with a role on the app can connect a Page or chat with
@@ -204,6 +211,8 @@ All settings are environment variables (see `.env.example` for a commented templ
 | `CHATBOT_CONVERSATION_TIMEOUT_HOURS` | Idle hours before an unfinished order conversation is abandoned (default 24) |
 | `CHATBOT_HANDOFF_TIMEOUT_HOURS` | Hours the bot stays paused after a handoff request or staff reply (default 12) |
 | `CORS_ALLOWED_ORIGINS` | Other browser apps allowed to call the API (never `*` in production) |
+| `LEGAL_OPERATOR_NAME`, `LEGAL_CONTACT_EMAIL`, `LEGAL_ADDRESS` | Who runs the service, shown on `/privacy`, `/terms` and `/data-deletion` (name and email required under `prod`) |
+| `PRIVACY_MESSAGE_RETENTION_DAYS` | Chat messages older than this are deleted nightly; orders are kept (default 365, `0` = forever) |
 | `TZ` | Time zone for timestamps and "today" (default `Asia/Ulaanbaatar`) |
 | `LOG_LEVEL`, `FORWARD_HEADERS_STRATEGY`, `APP_PORT` | Operations (see `.env.example`) |
 
@@ -221,6 +230,10 @@ All settings are environment variables (see `.env.example` for a commented templ
   callback by a signed, expiring `state`, the QPay callback by an HMAC token plus confirming
   every payment with QPay, product photos by random ids.
 - **Secrets at rest:** Meta Page tokens and QPay passwords are AES-GCM encrypted.
+- **Personal data:** chat messages are deleted after `PRIVACY_MESSAGE_RETENTION_DAYS`. An owner
+  can erase a customer from the chat view (history deleted, contact details removed from
+  orders). Meta's deauthorize and data-deletion callbacks (signed with the app secret) remove
+  the Facebook connection of the person who made the request.
 - **Shop-supplied URLs:** notification webhooks must be public `https://` addresses; private,
   loopback and metadata addresses are refused when saved and again when connecting.
 - **Headers:** a strict Content-Security-Policy (the dashboard loads only its own files),

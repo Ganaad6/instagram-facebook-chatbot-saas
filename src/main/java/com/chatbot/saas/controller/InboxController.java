@@ -7,6 +7,7 @@ import com.chatbot.saas.service.ChatListService;
 import org.springframework.data.domain.Page;
 import com.chatbot.saas.dto.response.MessageResponse;
 import com.chatbot.saas.security.TenantContext;
+import com.chatbot.saas.service.CustomerDataService;
 import com.chatbot.saas.service.CustomerService;
 import com.chatbot.saas.service.HandoffService;
 import com.chatbot.saas.service.MessageLogService;
@@ -35,6 +36,7 @@ public class InboxController {
     private final MessageLogService messageLogService;
     private final TenantContext tenantContext;
     private final ChatListService chatListService;
+    private final CustomerDataService customerDataService;
 
     /**
      * Every customer conversation, most recently active first (the dashboard's chat list);
@@ -97,5 +99,16 @@ public class InboxController {
                                                       @PathVariable Long customerId) {
         tenantContext.assertAccess(businessId);
         return ResponseEntity.ok(handoffService.resumeBot(businessId, customerId));
+    }
+
+    /**
+     * Erases a customer's personal data (e.g. they asked the shop to): chat history deleted,
+     * contact details removed from their orders. Owners only; cannot be undone.
+     */
+    @DeleteMapping("/customers/{customerId}")
+    public ResponseEntity<Void> eraseCustomer(@PathVariable Long businessId, @PathVariable Long customerId) {
+        tenantContext.assertOwner(businessId);
+        customerDataService.erase(businessId, customerId);
+        return ResponseEntity.noContent().build();
     }
 }

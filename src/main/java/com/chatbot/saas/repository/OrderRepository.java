@@ -8,6 +8,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.stereotype.Repository;
 
 import java.time.LocalDateTime;
@@ -91,4 +92,10 @@ public interface OrderRepository extends JpaRepository<Order, Long> {
     @Query(value = "SELECT DATE(created_at) as day, COUNT(*) as cnt FROM orders WHERE business_id = :businessId AND created_at BETWEEN :from AND :to GROUP BY day ORDER BY day",
            nativeQuery = true)
     List<Object[]> countOrdersByDay(@Param("businessId") Long businessId, @Param("from") LocalDateTime from, @Param("to") LocalDateTime to);
+
+    /** Keeps the order (the shop's sales record) but drops who it was for. */
+    @Modifying
+    @Query("update CustomerOrder o set o.customerName = null, o.phone = null, o.address = null, o.notes = null "
+            + "where o.customer.id = :customerId")
+    int anonymizeAllByCustomerId(@Param("customerId") Long customerId);
 }

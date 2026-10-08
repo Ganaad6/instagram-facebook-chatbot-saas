@@ -95,6 +95,17 @@ auth:
   invite-ttl-hours: ${AUTH_INVITE_TTL_HOURS:72}
   reset-ttl-hours: ${AUTH_RESET_TTL_HOURS:24}
 
+# Shown on the public privacy policy and terms pages (/privacy, /terms) - Meta App Review needs
+# them. The prod profile refuses to start without a name and contact email.
+legal:
+  operator-name: ${LEGAL_OPERATOR_NAME:}
+  contact-email: ${LEGAL_CONTACT_EMAIL:}
+  address: ${LEGAL_ADDRESS:}
+
+privacy:
+  # Chat messages older than this are deleted nightly (orders are kept); 0 keeps them forever
+  message-retention-days: ${PRIVACY_MESSAGE_RETENTION_DAYS:365}
+
 directus:
   public-url: ${DIRECTUS_PUBLIC_URL:}
 

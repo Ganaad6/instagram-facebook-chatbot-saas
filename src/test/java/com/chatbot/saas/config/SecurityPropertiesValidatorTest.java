@@ -23,6 +23,8 @@ class SecurityPropertiesValidatorTest {
         ReflectionTestUtils.setField(validator, "metaAppSecret", "secret");
         ReflectionTestUtils.setField(validator, "oauthRedirectUri", "https://api.example/api/auth/meta/callback");
         ReflectionTestUtils.setField(validator, "qpayApiUrl", "https://merchant.qpay.mn/v2");
+        ReflectionTestUtils.setField(validator, "legalOperatorName", "Shop Platform LLC");
+        ReflectionTestUtils.setField(validator, "legalContactEmail", "privacy@shop.example");
     }
 
     @Test
@@ -52,6 +54,14 @@ class SecurityPropertiesValidatorTest {
 
         IllegalStateException e = assertThrows(IllegalStateException.class, validator::validate);
         assertTrue(e.getMessage().contains("BASE_URL"));
+    }
+
+    @Test
+    void missingLegalContactIsRejected() {
+        ReflectionTestUtils.setField(validator, "legalContactEmail", "");
+
+        IllegalStateException e = assertThrows(IllegalStateException.class, validator::validate);
+        assertTrue(e.getMessage().contains("LEGAL_CONTACT_EMAIL"));
     }
 
     @Test
