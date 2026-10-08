@@ -91,7 +91,7 @@ public class MetaGraphClient {
         if (response == null || !response.hasNonNull("id")) {
             throw new MetaConnectException("Meta did not return the Facebook user id");
         }
-        return response.get("id").asText();
+        return response.get("id").asString();
     }
 
     /** Lists the Pages the user granted access to, with each Page's token and linked Instagram account. */

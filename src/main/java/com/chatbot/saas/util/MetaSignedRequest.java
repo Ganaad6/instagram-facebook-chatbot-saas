@@ -1,7 +1,7 @@
 package com.chatbot.saas.util;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 import org.apache.commons.codec.digest.HmacAlgorithms;
 import org.apache.commons.codec.digest.HmacUtils;
 
@@ -39,11 +39,11 @@ public final class MetaSignedRequest {
             }
             JsonNode payload = OBJECT_MAPPER.readTree(
                     new String(Base64.getUrlDecoder().decode(encodedPayload), StandardCharsets.UTF_8));
-            if (!"HMAC-SHA256".equalsIgnoreCase(payload.path("algorithm").asText())
+            if (!"HMAC-SHA256".equalsIgnoreCase(payload.path("algorithm").asString())
                     || !payload.hasNonNull("user_id")) {
                 return Optional.empty();
             }
-            return Optional.of(payload.get("user_id").asText());
+            return Optional.of(payload.get("user_id").asString());
         } catch (Exception e) {
             return Optional.empty();
         }

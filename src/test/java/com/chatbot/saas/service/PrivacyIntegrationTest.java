@@ -3,13 +3,13 @@ package com.chatbot.saas.service;
 import com.chatbot.saas.entity.*;
 import com.chatbot.saas.repository.*;
 import com.chatbot.saas.util.MetaSignedRequestTest;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 import io.zonky.test.db.AutoConfigureEmbeddedDatabase;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
+import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -32,7 +32,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * retention limit - over HTTP against the real database.
  */
 @SpringBootTest
-@AutoConfigureEmbeddedDatabase(provider = AutoConfigureEmbeddedDatabase.DatabaseProvider.ZONKY)
+@AutoConfigureEmbeddedDatabase(provider = AutoConfigureEmbeddedDatabase.DatabaseProvider.EMBEDDED)
 @AutoConfigureMockMvc
 @ActiveProfiles("test")
 class PrivacyIntegrationTest {
@@ -66,7 +66,7 @@ class PrivacyIntegrationTest {
                 .andReturn().getResponse().getContentAsString();
         JsonNode registered = objectMapper.readTree(response);
         businessId = registered.get("id").asLong();
-        apiKey = registered.get("apiKey").asText();
+        apiKey = registered.get("apiKey").asString();
 
         Business business = businessRepository.findById(businessId).orElseThrow();
         business.setFacebookPageId("page-" + unique);
@@ -107,8 +107,8 @@ class PrivacyIntegrationTest {
                 .andExpect(status().isOk())
                 .andReturn().getResponse().getContentAsString();
         JsonNode body = objectMapper.readTree(response);
-        String code = body.get("confirmation_code").asText();
-        assertTrue(body.get("url").asText().endsWith("/data-deletion?code=" + code));
+        String code = body.get("confirmation_code").asString();
+        assertTrue(body.get("url").asString().endsWith("/data-deletion?code=" + code));
         assertDisconnected();
 
         mockMvc.perform(get("/api/public/data-deletion/" + code))
@@ -175,7 +175,7 @@ class PrivacyIntegrationTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(Map.of("name", "Other", "email", System.nanoTime() + "@example.com"))))
                 .andReturn().getResponse().getContentAsString();
-        String otherKey = objectMapper.readTree(other).get("apiKey").asText();
+        String otherKey = objectMapper.readTree(other).get("apiKey").asString();
 
         mockMvc.perform(delete("/api/businesses/" + businessId + "/customers/" + customer.getId()).header("X-API-Key", otherKey))
                 .andExpect(status().isForbidden());
