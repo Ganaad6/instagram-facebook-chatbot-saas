@@ -1,7 +1,7 @@
 package com.chatbot.saas.service;
 
 import com.chatbot.saas.exception.MetaConnectException;
-import com.fasterxml.jackson.databind.JsonNode;
+import tools.jackson.databind.JsonNode;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -114,11 +114,11 @@ public class MetaGraphClient {
             return pages;
         }
         for (JsonNode page : response.path("data")) {
-            String instagramId = page.path("instagram_business_account").path("id").asText(null);
+            String instagramId = page.path("instagram_business_account").path("id").asString(null);
             pages.add(new PageAccount(
-                    page.path("id").asText(),
-                    page.path("name").asText(),
-                    page.path("access_token").asText(null),
+                    page.path("id").asString(),
+                    page.path("name").asString(),
+                    page.path("access_token").asString(null),
                     instagramId));
         }
         return pages;
@@ -170,7 +170,7 @@ public class MetaGraphClient {
         try {
             JsonNode body = e.getResponseBodyAs(JsonNode.class);
             if (body != null && body.path("error").hasNonNull("message")) {
-                return body.path("error").path("message").asText();
+                return body.path("error").path("message").asString();
             }
         } catch (Exception ignored) {
             // Fall through to the status text
@@ -182,6 +182,6 @@ public class MetaGraphClient {
         if (response == null || !response.hasNonNull(field)) {
             throw new MetaConnectException("Meta did not return a token while trying to " + action);
         }
-        return response.get(field).asText();
+        return response.get(field).asString();
     }
 }

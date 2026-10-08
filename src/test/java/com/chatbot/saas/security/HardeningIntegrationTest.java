@@ -1,12 +1,12 @@
 package com.chatbot.saas.security;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 import io.zonky.test.db.AutoConfigureEmbeddedDatabase;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
+import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
 import org.springframework.mock.web.MockHttpServletResponse;
@@ -21,7 +21,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 
 /** Production hardening: SSRF-safe webhook URLs, error responses, security headers. */
 @SpringBootTest
-@AutoConfigureEmbeddedDatabase(provider = AutoConfigureEmbeddedDatabase.DatabaseProvider.ZONKY)
+@AutoConfigureEmbeddedDatabase(provider = AutoConfigureEmbeddedDatabase.DatabaseProvider.EMBEDDED)
 @AutoConfigureMockMvc
 @ActiveProfiles("test")
 class HardeningIntegrationTest {
@@ -37,7 +37,7 @@ class HardeningIntegrationTest {
                 .content(objectMapper.writeValueAsString(Map.of("name", "Shop", "email", "h" + System.nanoTime() + "@example.com"))))
                 .andReturn().getResponse().getContentAsString());
         businessId = shop.get("id").asLong();
-        apiKey = shop.get("apiKey").asText();
+        apiKey = shop.get("apiKey").asString();
     }
 
     private MockHttpServletResponse setWebhook(String url) throws Exception {

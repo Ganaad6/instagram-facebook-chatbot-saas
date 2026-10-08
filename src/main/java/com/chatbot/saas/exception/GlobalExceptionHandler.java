@@ -116,7 +116,7 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(MaxUploadSizeExceededException.class)
     public ResponseEntity<Map<String, Object>> handleUploadTooLarge(MaxUploadSizeExceededException ex) {
-        return error(HttpStatus.PAYLOAD_TOO_LARGE, "Зураг 5MB-аас ихгүй байх ёстой");
+        return error(HttpStatus.CONTENT_TOO_LARGE, "Зураг 5MB-аас ихгүй байх ёстой");
     }
 
     /** A unique value already taken, e.g. another shop's email or Page id. */

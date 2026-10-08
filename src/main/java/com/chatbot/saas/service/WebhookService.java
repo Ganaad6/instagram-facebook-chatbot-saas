@@ -4,8 +4,8 @@ import com.chatbot.saas.exception.WebhookAuthenticationException;
 import com.chatbot.saas.service.MessageHandlerService.EchoMessage;
 import com.chatbot.saas.service.MessageHandlerService.InboundMessage;
 import com.chatbot.saas.util.SignatureValidator;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
@@ -56,7 +56,7 @@ public class WebhookService {
             return;
         }
 
-        String objectType = root.path("object").asText();
+        String objectType = root.path("object").asString();
         log.debug("Processing webhook for object type: {}", objectType);
         // "page" = Facebook Messenger, "instagram" = Instagram messaging
         String platform = "page".equalsIgnoreCase(objectType) ? "FACEBOOK" : "INSTAGRAM";
@@ -73,8 +73,8 @@ public class WebhookService {
     }
 
     private void processMessagingEvent(JsonNode messagingEvent, String platform) {
-        String senderId = messagingEvent.path("sender").path("id").asText();
-        String recipientId = messagingEvent.path("recipient").path("id").asText();
+        String senderId = messagingEvent.path("sender").path("id").asString();
+        String recipientId = messagingEvent.path("recipient").path("id").asString();
         if (senderId.isEmpty() || recipientId.isEmpty()) {
             return;
         }
@@ -88,25 +88,25 @@ public class WebhookService {
                 // A message the shop's account sent: the sender is the shop, the recipient the
                 // customer. Either this app's own reply or staff typing in the Meta inbox.
                 messageHandlerService.handleEcho(new EchoMessage(platform, senderId, recipientId,
-                        message.path("mid").asText(null), message.path("text").asText(""),
-                        message.path("app_id").asText(null)));
+                        message.path("mid").asString(null), message.path("text").asString(""),
+                        message.path("app_id").asString(null)));
                 return;
             }
             // Tapping a quick reply sends its title as text; the payload holds the menu number
-            String text = message.path("quick_reply").path("payload").asText("");
+            String text = message.path("quick_reply").path("payload").asString("");
             if (text.isEmpty()) {
-                text = message.path("text").asText("");
+                text = message.path("text").asString("");
             }
             boolean hasAttachments = message.path("attachments").size() > 0;
             if (text.isEmpty() && !hasAttachments) {
                 return;
             }
-            dispatch(platform, senderId, recipientId, message.path("mid").asText(null), text);
+            dispatch(platform, senderId, recipientId, message.path("mid").asString(null), text);
         } else if (messagingEvent.has("postback")) {
             JsonNode postback = messagingEvent.path("postback");
-            String payload = postback.path("payload").asText("");
+            String payload = postback.path("payload").asString("");
             if (!payload.isEmpty()) {
-                dispatch(platform, senderId, recipientId, postback.path("mid").asText(null), payload);
+                dispatch(platform, senderId, recipientId, postback.path("mid").asString(null), payload);
             }
         }
     }

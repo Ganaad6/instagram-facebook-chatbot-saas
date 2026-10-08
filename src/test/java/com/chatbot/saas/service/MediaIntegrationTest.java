@@ -1,13 +1,13 @@
 package com.chatbot.saas.service;
 
 import com.chatbot.saas.repository.MediaFileRepository;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 import io.zonky.test.db.AutoConfigureEmbeddedDatabase;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
+import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -24,7 +24,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 
 /** Product photos: upload, public serving (Meta fetches them), and use on products. */
 @SpringBootTest
-@AutoConfigureEmbeddedDatabase(provider = AutoConfigureEmbeddedDatabase.DatabaseProvider.ZONKY)
+@AutoConfigureEmbeddedDatabase(provider = AutoConfigureEmbeddedDatabase.DatabaseProvider.EMBEDDED)
 @AutoConfigureMockMvc
 @ActiveProfiles("test")
 class MediaIntegrationTest {
@@ -47,7 +47,7 @@ class MediaIntegrationTest {
     void shop() throws Exception {
         JsonNode shop = register();
         businessId = shop.get("id").asLong();
-        apiKey = shop.get("apiKey").asText();
+        apiKey = shop.get("apiKey").asString();
         categoryId = json(mockMvc.perform(post("/api/businesses/" + businessId + "/categories")
                 .header("X-API-Key", apiKey).contentType(MediaType.APPLICATION_JSON)
                 .content("{\"name\":\"Цэцэг\"}")).andReturn().getResponse()).get("id").asLong();
@@ -75,8 +75,8 @@ class MediaIntegrationTest {
         MockHttpServletResponse uploaded = upload(apiKey, businessId, PNG, "image/png");
         assertEquals(201, uploaded.getStatus());
         JsonNode upload = json(uploaded);
-        String id = upload.get("id").asText();
-        assertEquals("http://localhost:8080/media/" + id, upload.get("url").asText());
+        String id = upload.get("id").asString();
+        assertEquals("http://localhost:8080/media/" + id, upload.get("url").asString());
 
         MockHttpServletResponse served = mockMvc.perform(get("/media/" + id)).andReturn().getResponse();
         assertEquals(200, served.getStatus());
@@ -89,7 +89,7 @@ class MediaIntegrationTest {
                 .header("X-API-Key", apiKey).contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(Map.of("name", "Сарнай", "categoryId", categoryId,
                         "price", 15000, "imageFileId", id)))).andReturn().getResponse());
-        assertEquals("http://localhost:8080/media/" + id, product.get("imageUrl").asText());
+        assertEquals("http://localhost:8080/media/" + id, product.get("imageUrl").asString());
 
         JsonNode updated = json(mockMvc.perform(put("/api/businesses/" + businessId + "/products/" + product.get("id").asLong())
                 .header("X-API-Key", apiKey).contentType(MediaType.APPLICATION_JSON)
@@ -109,8 +109,8 @@ class MediaIntegrationTest {
     @Test
     void aShopCannotUseAnotherShopsPhoto() throws Exception {
         JsonNode other = register();
-        String othersPhoto = json(upload(other.get("apiKey").asText(), other.get("id").asLong(), PNG, "image/png"))
-                .get("id").asText();
+        String othersPhoto = json(upload(other.get("apiKey").asString(), other.get("id").asLong(), PNG, "image/png"))
+                .get("id").asString();
 
         assertEquals(400, mockMvc.perform(post("/api/businesses/" + businessId + "/products")
                 .header("X-API-Key", apiKey).contentType(MediaType.APPLICATION_JSON)
@@ -128,9 +128,9 @@ class MediaIntegrationTest {
 
     @Test
     void cleanupRemovesOldUnusedUploadsOnly() throws Exception {
-        UUID unused = UUID.fromString(json(upload(apiKey, businessId, PNG, "image/png")).get("id").asText());
-        UUID used = UUID.fromString(json(upload(apiKey, businessId, PNG, "image/png")).get("id").asText());
-        UUID fresh = UUID.fromString(json(upload(apiKey, businessId, PNG, "image/png")).get("id").asText());
+        UUID unused = UUID.fromString(json(upload(apiKey, businessId, PNG, "image/png")).get("id").asString());
+        UUID used = UUID.fromString(json(upload(apiKey, businessId, PNG, "image/png")).get("id").asString());
+        UUID fresh = UUID.fromString(json(upload(apiKey, businessId, PNG, "image/png")).get("id").asString());
         mockMvc.perform(post("/api/businesses/" + businessId + "/products")
                 .header("X-API-Key", apiKey).contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(Map.of("name", "Y", "categoryId", categoryId,

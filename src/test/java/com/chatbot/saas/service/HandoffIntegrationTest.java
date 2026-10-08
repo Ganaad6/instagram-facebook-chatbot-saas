@@ -5,15 +5,15 @@ import com.chatbot.saas.repository.*;
 import com.chatbot.saas.service.MessageHandlerService.EchoMessage;
 import com.chatbot.saas.service.MessageHandlerService.InboundMessage;
 import com.chatbot.saas.util.EncryptionUtil;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 import io.zonky.test.db.AutoConfigureEmbeddedDatabase;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
+import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.http.MediaType;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 import org.springframework.test.context.ActiveProfiles;
@@ -37,7 +37,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * database, and the staff API over HTTP. Only Meta itself is faked.
  */
 @SpringBootTest
-@AutoConfigureEmbeddedDatabase(provider = AutoConfigureEmbeddedDatabase.DatabaseProvider.ZONKY)
+@AutoConfigureEmbeddedDatabase(provider = AutoConfigureEmbeddedDatabase.DatabaseProvider.EMBEDDED)
 @AutoConfigureMockMvc
 @ActiveProfiles("test")
 class HandoffIntegrationTest {
@@ -52,7 +52,7 @@ class HandoffIntegrationTest {
     @Autowired private EncryptionUtil encryptionUtil;
     @Autowired private ThreadPoolTaskExecutor taskExecutor;
 
-    @MockBean private MetaReplyService metaReplyService;
+    @MockitoBean private MetaReplyService metaReplyService;
 
     private final ObjectMapper objectMapper = new ObjectMapper();
     private final AtomicInteger mids = new AtomicInteger();
@@ -72,7 +72,7 @@ class HandoffIntegrationTest {
                 .andReturn().getResponse().getContentAsString();
         JsonNode registered = objectMapper.readTree(response);
         businessId = registered.get("id").asLong();
-        apiKey = registered.get("apiKey").asText();
+        apiKey = registered.get("apiKey").asString();
 
         Business business = businessRepository.findById(businessId).orElseThrow();
         business.setFacebookPageId(pageId);
@@ -167,7 +167,7 @@ class HandoffIntegrationTest {
         String history = mockMvc.perform(get(base + "/messages").header("X-API-Key", apiKey))
                 .andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
         JsonNode last = objectMapper.readTree(history).get(objectMapper.readTree(history).size() - 1);
-        assertEquals("AGENT", last.get("senderType").asText());
+        assertEquals("AGENT", last.get("senderType").asString());
 
         long conversationsBefore = conversationRepository.findAllByBusinessId(businessId).size();
         mockMvc.perform(post(base + "/resume-bot").header("X-API-Key", apiKey)).andExpect(status().isOk());
@@ -198,7 +198,7 @@ class HandoffIntegrationTest {
         String otherKey = objectMapper.readTree(mockMvc.perform(post("/api/businesses/register")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(Map.of("name", "Other", "email", "o" + pageId + "@example.com"))))
-                .andReturn().getResponse().getContentAsString()).get("apiKey").asText();
+                .andReturn().getResponse().getContentAsString()).get("apiKey").asString();
         long otherId = businessRepository.findByEmail("o" + pageId + "@example.com").orElseThrow().getId();
 
         // Another shop's key can't use this shop's path...

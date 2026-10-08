@@ -3,7 +3,7 @@ package com.chatbot.saas.service;
 import com.chatbot.saas.exception.WebhookAuthenticationException;
 import com.chatbot.saas.service.MessageHandlerService.EchoMessage;
 import com.chatbot.saas.service.MessageHandlerService.InboundMessage;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
 import org.apache.commons.codec.digest.HmacAlgorithms;
 import org.apache.commons.codec.digest.HmacUtils;
 import org.junit.jupiter.api.BeforeEach;
