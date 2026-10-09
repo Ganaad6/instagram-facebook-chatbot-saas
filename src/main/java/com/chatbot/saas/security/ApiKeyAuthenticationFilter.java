@@ -3,7 +3,7 @@ package com.chatbot.saas.security;
 import com.chatbot.saas.entity.Business;
 import com.chatbot.saas.service.BusinessService;
 import com.chatbot.saas.util.ApiKeyGenerator;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;

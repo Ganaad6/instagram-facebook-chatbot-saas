@@ -8,9 +8,6 @@ spring:
   jpa:
     hibernate:
       ddl-auto: validate
-    properties:
-      hibernate:
-        dialect: org.hibernate.dialect.PostgreSQLDialect
     show-sql: false
   flyway:
     enabled: true
@@ -95,11 +92,16 @@ auth:
   invite-ttl-hours: ${AUTH_INVITE_TTL_HOURS:72}
   reset-ttl-hours: ${AUTH_RESET_TTL_HOURS:24}
 
+# Shown on the public privacy policy and terms pages (/privacy, /terms) - Meta App Review needs
+# them. The prod profile refuses to start without a name and contact email.
 legal:
-  # Shown on the public /privacy, /terms and /data-deletion pages (Meta App Review requires them)
   operator-name: ${LEGAL_OPERATOR_NAME:}
   contact-email: ${LEGAL_CONTACT_EMAIL:}
-  policy-updated: ${LEGAL_POLICY_UPDATED:2026-10-06}
+  address: ${LEGAL_ADDRESS:}
+
+privacy:
+  # Chat messages older than this are deleted nightly (orders are kept); 0 keeps them forever
+  message-retention-days: ${PRIVACY_MESSAGE_RETENTION_DAYS:365}
 
 directus:
   public-url: ${DIRECTUS_PUBLIC_URL:}

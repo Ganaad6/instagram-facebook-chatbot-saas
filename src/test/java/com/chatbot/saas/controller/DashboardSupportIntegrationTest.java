@@ -3,15 +3,15 @@ package com.chatbot.saas.controller;
 import com.chatbot.saas.entity.*;
 import com.chatbot.saas.repository.*;
 import com.chatbot.saas.service.OAuthService;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 import io.zonky.test.db.AutoConfigureEmbeddedDatabase;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
+import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.http.MediaType;
 import org.springframework.mock.web.MockHttpServletResponse;
 import org.springframework.test.context.ActiveProfiles;
@@ -32,7 +32,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 
 /** The endpoints and routes the dashboard relies on beyond the core API. */
 @SpringBootTest
-@AutoConfigureEmbeddedDatabase(provider = AutoConfigureEmbeddedDatabase.DatabaseProvider.ZONKY)
+@AutoConfigureEmbeddedDatabase(provider = AutoConfigureEmbeddedDatabase.DatabaseProvider.EMBEDDED)
 @AutoConfigureMockMvc
 @ActiveProfiles("test")
 class DashboardSupportIntegrationTest {
@@ -44,7 +44,7 @@ class DashboardSupportIntegrationTest {
     @Autowired private CustomerRepository customerRepository;
     @Autowired private OrderRepository orderRepository;
     @Autowired private MessageRepository messageRepository;
-    @MockBean private OAuthService oAuthService;
+    @MockitoBean private OAuthService oAuthService;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     private long businessId;
@@ -56,7 +56,7 @@ class DashboardSupportIntegrationTest {
                 .content(objectMapper.writeValueAsString(Map.of("name", "Shop", "email", "d" + System.nanoTime() + "@example.com"))))
                 .andReturn().getResponse());
         businessId = shop.get("id").asLong();
-        apiKey = shop.get("apiKey").asText();
+        apiKey = shop.get("apiKey").asString();
     }
 
     private JsonNode json(MockHttpServletResponse response) throws Exception {
@@ -105,9 +105,9 @@ class DashboardSupportIntegrationTest {
         assertEquals(2, page.get("totalElements").asInt());
         JsonNode first = page.get("content").get(0);
         assertEquals(newer.getId(), first.get("customerId").asLong());
-        assertEquals("Батбаяр", first.get("displayName").asText());
-        assertEquals("BOT", first.get("lastMessageSender").asText());
-        assertEquals("FACEBOOK", first.get("platform").asText());
+        assertEquals("Батбаяр", first.get("displayName").asString());
+        assertEquals("BOT", first.get("lastMessageSender").asString());
+        assertEquals("FACEBOOK", first.get("platform").asString());
         assertTrue(page.get("content").get(1).get("displayName").isNull(), "never ordered → no name");
 
         assertEquals(newer.getId(), getJson("/api/businesses/" + businessId + "/chats/" + newer.getId()).get("customerId").asLong());
@@ -167,15 +167,15 @@ class DashboardSupportIntegrationTest {
                 .content(objectMapper.writeValueAsString(Map.of("welcomeMessage", " Тавтай морил 🌸 ", "deliveryNote", "1–2 хоногт"))))
                 .andReturn().getResponse().getStatus());
         JsonNode shop = getJson(path);
-        assertEquals("Тавтай морил 🌸", shop.get("welcomeMessage").asText());
-        assertEquals("1–2 хоногт", shop.get("deliveryNote").asText());
+        assertEquals("Тавтай морил 🌸", shop.get("welcomeMessage").asString());
+        assertEquals("1–2 хоногт", shop.get("deliveryNote").asString());
 
         // Blank clears it; other fields are left alone when not sent
         mockMvc.perform(put(path).header("X-API-Key", apiKey).contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(Map.of("deliveryNote", "  "))));
         shop = getJson(path);
         assertTrue(shop.get("deliveryNote").isNull());
-        assertEquals("Тавтай морил 🌸", shop.get("welcomeMessage").asText());
+        assertEquals("Тавтай морил 🌸", shop.get("welcomeMessage").asString());
 
         assertEquals(400, mockMvc.perform(put(path).header("X-API-Key", apiKey).contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(Map.of("welcomeMessage", "x".repeat(501)))))

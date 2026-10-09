@@ -3,8 +3,8 @@ package com.chatbot.saas.service;
 import com.chatbot.saas.exception.QPayException;
 import com.chatbot.saas.service.QPayClient.Credentials;
 import com.chatbot.saas.service.QPayClient.PaymentCheck;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
@@ -111,11 +111,11 @@ class QPayClientTest {
         assertEquals("/v2/invoice", requests.get(1).url().getPath());
         assertEquals("Bearer t1", requests.get(1).headers().getFirst(HttpHeaders.AUTHORIZATION));
         JsonNode body = objectMapper.readTree(bodies.get(1));
-        assertEquals("SHOP_INVOICE", body.get("invoice_code").asText());
-        assertEquals("ORDER-7", body.get("sender_invoice_no").asText());
-        assertEquals("terminal", body.get("invoice_receiver_code").asText());
+        assertEquals("SHOP_INVOICE", body.get("invoice_code").asString());
+        assertEquals("ORDER-7", body.get("sender_invoice_no").asString());
+        assertEquals("terminal", body.get("invoice_receiver_code").asString());
         assertEquals(0, new BigDecimal("20000").compareTo(body.get("amount").decimalValue()));
-        assertEquals("https://shop.example/webhook/qpay/7?token=x", body.get("callback_url").asText());
+        assertEquals("https://shop.example/webhook/qpay/7?token=x", body.get("callback_url").asString());
     }
 
     @Test

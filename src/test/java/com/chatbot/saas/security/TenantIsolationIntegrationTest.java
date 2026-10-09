@@ -1,12 +1,12 @@
 package com.chatbot.saas.security;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 import io.zonky.test.db.AutoConfigureEmbeddedDatabase;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
+import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
 import org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors;
@@ -23,7 +23,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * locked out entirely.
  */
 @SpringBootTest
-@AutoConfigureEmbeddedDatabase(provider = AutoConfigureEmbeddedDatabase.DatabaseProvider.ZONKY)
+@AutoConfigureEmbeddedDatabase(provider = AutoConfigureEmbeddedDatabase.DatabaseProvider.EMBEDDED)
 @AutoConfigureMockMvc
 @ActiveProfiles("test")
 class TenantIsolationIntegrationTest {
@@ -42,11 +42,11 @@ class TenantIsolationIntegrationTest {
     void registerTwoBusinesses() throws Exception {
         JsonNode businessA = register("Business A", "business-a-" + System.nanoTime() + "@example.com");
         businessAId = businessA.get("id").asLong();
-        businessAApiKey = businessA.get("apiKey").asText();
+        businessAApiKey = businessA.get("apiKey").asString();
 
         JsonNode businessB = register("Business B", "business-b-" + System.nanoTime() + "@example.com");
         businessBId = businessB.get("id").asLong();
-        businessBApiKey = businessB.get("apiKey").asText();
+        businessBApiKey = businessB.get("apiKey").asString();
     }
 
     private JsonNode register(String name, String email) throws Exception {

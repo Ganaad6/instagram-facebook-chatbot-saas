@@ -1,7 +1,7 @@
 package com.chatbot.saas.service;
 
 import com.chatbot.saas.exception.QPayException;
-import com.fasterxml.jackson.databind.JsonNode;
+import tools.jackson.databind.JsonNode;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.http.HttpStatus;
@@ -82,7 +82,7 @@ public class QPayClient {
         if (response == null || !response.hasNonNull("invoice_id") || !response.hasNonNull("qPay_shortUrl")) {
             throw new QPayException("QPay did not return an invoice");
         }
-        return new Invoice(response.get("invoice_id").asText(), response.get("qPay_shortUrl").asText());
+        return new Invoice(response.get("invoice_id").asString(), response.get("qPay_shortUrl").asString());
     }
 
     public PaymentCheck checkPayment(Credentials credentials, String invoiceId) {
@@ -101,10 +101,10 @@ public class QPayClient {
         String paymentId = null;
         if (response != null) {
             for (JsonNode row : response.path("rows")) {
-                if ("PAID".equals(row.path("payment_status").asText())) {
-                    paid = paid.add(new BigDecimal(row.path("payment_amount").asText("0")));
+                if ("PAID".equals(row.path("payment_status").asString())) {
+                    paid = paid.add(new BigDecimal(row.path("payment_amount").asString("0")));
                     if (paymentId == null) {
-                        paymentId = row.path("payment_id").asText(null);
+                        paymentId = row.path("payment_id").asString(null);
                     }
                 }
             }
@@ -169,7 +169,7 @@ public class QPayClient {
         }
         long expiresIn = response.path("expires_in").asLong(0);
         long expiresAt = expiresIn > EPOCH_SECONDS_THRESHOLD ? expiresIn : now + expiresIn;
-        String accessToken = response.get("access_token").asText();
+        String accessToken = response.get("access_token").asString();
         tokens.put(credentials.username(), new CachedToken(accessToken, expiresAt - TOKEN_EXPIRY_MARGIN_SECONDS));
         return accessToken;
     }
@@ -180,7 +180,7 @@ public class QPayClient {
             JsonNode body = e.getResponseBodyAs(JsonNode.class);
             if (body != null && body.hasNonNull("message")) {
                 JsonNode message = body.get("message");
-                detail += " " + (message.isTextual() ? message.asText() : message.toString());
+                detail += " " + (message.isString() ? message.asString() : message.toString());
             }
         } catch (Exception ignored) {
             // Fall back to the status alone

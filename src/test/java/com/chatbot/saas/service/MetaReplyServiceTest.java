@@ -1,7 +1,7 @@
 package com.chatbot.saas.service;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
@@ -89,10 +89,10 @@ class MetaReplyServiceTest {
                 List.of("Very long product name that exceeds limits — ₮125,000"), "token");
 
         JsonNode message = sentBodies.get(0).path("message");
-        assertTrue(message.path("text").asText().contains("1. Very long product name that exceeds limits — ₮125,000"));
-        String title = message.path("quick_replies").get(0).path("title").asText();
+        assertTrue(message.path("text").asString().contains("1. Very long product name that exceeds limits — ₮125,000"));
+        String title = message.path("quick_replies").get(0).path("title").asString();
         assertTrue(title.length() <= 20, title);
-        assertEquals("1", message.path("quick_replies").get(0).path("payload").asText());
+        assertEquals("1", message.path("quick_replies").get(0).path("payload").asString());
     }
 
     @Test
@@ -104,7 +104,7 @@ class MetaReplyServiceTest {
 
         JsonNode message = sentBodies.get(0).path("message");
         assertTrue(message.path("quick_replies").isMissingNode());
-        assertTrue(message.path("text").asText().contains("14. Item 14"));
+        assertTrue(message.path("text").asString().contains("14. Item 14"));
     }
 
     @Test
@@ -116,7 +116,7 @@ class MetaReplyServiceTest {
         assertEquals(2, sentBodies.size());
         assertFalse(sentBodies.get(0).path("message").path("quick_replies").isMissingNode());
         assertTrue(sentBodies.get(1).path("message").path("quick_replies").isMissingNode());
-        assertEquals("Pick:\n1. A", sentBodies.get(1).path("message").path("text").asText());
+        assertEquals("Pick:\n1. A", sentBodies.get(1).path("message").path("text").asString());
     }
 
     @Test
@@ -134,7 +134,7 @@ class MetaReplyServiceTest {
 
         service.sendPhoneRequest("r", "Утас?", "token");
 
-        assertEquals("user_phone_number", sentBodies.get(0).path("message").path("quick_replies").get(0).path("content_type").asText());
+        assertEquals("user_phone_number", sentBodies.get(0).path("message").path("quick_replies").get(0).path("content_type").asString());
     }
 
     @Test
@@ -149,15 +149,15 @@ class MetaReplyServiceTest {
 
         assertEquals(2, sentBodies.size());
         JsonNode payload = sentBodies.get(0).path("message").path("attachment").path("payload");
-        assertEquals("generic", payload.path("template_type").asText());
+        assertEquals("generic", payload.path("template_type").asString());
         JsonNode elements = payload.path("elements");
         assertEquals(10, elements.size());
-        assertTrue(elements.get(0).path("title").asText().length() <= 80);
-        assertEquals("https://shop/media/1", elements.get(0).path("image_url").asText());
+        assertTrue(elements.get(0).path("title").asString().length() <= 80);
+        assertEquals("https://shop/media/1", elements.get(0).path("image_url").asString());
         assertTrue(elements.get(1).path("image_url").isMissingNode());
         JsonNode button = elements.get(0).path("buttons").get(0);
-        assertEquals("postback", button.path("type").asText());
-        assertEquals("PRODUCT_1", button.path("payload").asText());
+        assertEquals("postback", button.path("type").asString());
+        assertEquals("PRODUCT_1", button.path("payload").asString());
         assertEquals(2, sentBodies.get(1).path("message").path("attachment").path("payload").path("elements").size());
     }
 

@@ -43,6 +43,10 @@ public class Customer {
     @Column(name = "handoff_requested_at")
     private LocalDateTime handoffRequestedAt;
 
+    /** Set when the shop erased this customer's data; their Meta ids are gone. */
+    @Column(name = "erased_at")
+    private LocalDateTime erasedAt;
+
     public boolean isBotPaused(LocalDateTime now) {
         return botPausedUntil != null && botPausedUntil.isAfter(now);
     }

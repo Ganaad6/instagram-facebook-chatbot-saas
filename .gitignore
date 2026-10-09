@@ -51,3 +51,6 @@ out/
 ### OS ###
 .DS_Store
 Thumbs.db
+### Claude Code (personal settings, agent worktrees) ###
+.claude/settings.local.json
+.claude/worktrees/

@@ -4,7 +4,7 @@ import com.chatbot.saas.service.BusinessService;
 import com.chatbot.saas.service.StaffAuthService;
 import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletRequest;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -109,6 +109,7 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.POST, "/api/auth/login", "/api/auth/signup",
                                 "/api/auth/logout", "/api/auth/links/accept").permitAll()
                         .requestMatchers("/actuator/health").permitAll()
+                        // Privacy policy, terms and data-deletion status pages
                         .requestMatchers(HttpMethod.GET, "/api/public/**").permitAll()
                         // Product photos: Meta fetches them without credentials
                         .requestMatchers(HttpMethod.GET, "/media/*").permitAll()

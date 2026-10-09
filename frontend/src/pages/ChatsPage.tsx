@@ -1,6 +1,6 @@
 import { Fragment, useEffect, useRef, useState, type FormEvent, type UIEvent } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
-import { ArrowLeft, Bot, ChevronLeft, ChevronRight, Clock, PauseCircle, Send } from 'lucide-react';
+import { ArrowLeft, Bot, ChevronLeft, ChevronRight, Clock, PauseCircle, Send, Trash2 } from 'lucide-react';
 import { api } from '../api';
 import { useMe } from '../auth';
 import { useNow, useResource } from '../hooks';
@@ -119,6 +119,7 @@ function Conversation({ businessId, customerId, chat: c, latestOrder, onChanged 
   const navigate = useNavigate();
   const toast = useToast();
   const now = useNow();
+  const { user } = useMe();
   const base = `/api/businesses/${businessId}/customers/${customerId}`;
   const messages = useResource<Message[]>(`${base}/messages?limit=200`, 5000);
   const [text, setText] = useState('');
@@ -163,6 +164,19 @@ function Conversation({ businessId, customerId, chat: c, latestOrder, onChanged 
     }
   };
 
+  // The customer asked the shop to delete their data (privacy policy); owners only
+  const erase = async () => {
+    if (!window.confirm('Энэ хэрэглэгчийн мэдээллийг устгах уу? Чатын түүх устаж, захиалгуудаас нэр, утас, хаяг арилна. Буцаах боломжгүй.')) return;
+    try {
+      await api.delete(base);
+      toast('Хэрэглэгчийн мэдээлэл устлаа');
+      await onChanged();
+      navigate('/chats');
+    } catch (err) {
+      toast(err instanceof Error ? err.message : String(err), 'error');
+    }
+  };
+
   const paused = c && (isFuture(c.botPausedUntil) || !!c.handoffRequestedAt);
 
   return (
@@ -182,6 +196,10 @@ function Conversation({ businessId, customerId, chat: c, latestOrder, onChanged 
         {c && (paused
           ? <button className="btn btn-primary" onClick={() => void botAction('resume-bot')}><Bot size={16} aria-hidden="true" /> Ботод шилжүүлэх</button>
           : <button className="btn" onClick={() => void botAction('pause-bot')}><PauseCircle size={16} aria-hidden="true" /> Ботыг зогсоох</button>)}
+        {c && user.role === 'OWNER' && (
+          <button className="icon-btn" onClick={() => void erase()} aria-label="Хэрэглэгчийн мэдээллийг устгах"
+                  title="Хэрэглэгчийн мэдээллийг устгах"><Trash2 size={18} /></button>
+        )}
       </header>
       {c?.handoffRequestedAt && (
         <div className="note warning" role="status">

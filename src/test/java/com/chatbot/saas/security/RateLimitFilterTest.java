@@ -1,7 +1,7 @@
 package com.chatbot.saas.security;
 
 import org.junit.jupiter.api.Test;
-import org.springframework.boot.autoconfigure.security.SecurityProperties;
+import org.springframework.boot.security.autoconfigure.web.servlet.SecurityFilterProperties;
 import org.springframework.core.annotation.Order;
 import org.springframework.mock.web.MockFilterChain;
 import org.springframework.mock.web.MockHttpServletRequest;
@@ -79,6 +79,6 @@ class RateLimitFilterTest {
     void runsBeforeSpringSecuritySoRejectedLoginsAreCounted() {
         Order order = RateLimitFilter.class.getAnnotation(Order.class);
         assertNotNull(order);
-        assertTrue(order.value() < SecurityProperties.DEFAULT_FILTER_ORDER);
+        assertTrue(order.value() < SecurityFilterProperties.DEFAULT_FILTER_ORDER);
     }
 }

@@ -1,11 +1,11 @@
 package com.chatbot.saas.security;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 import io.zonky.test.db.AutoConfigureEmbeddedDatabase;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
+import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.MediaType;
@@ -29,7 +29,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
  * roles, and sessions ending when access is withdrawn.
  */
 @SpringBootTest
-@AutoConfigureEmbeddedDatabase(provider = AutoConfigureEmbeddedDatabase.DatabaseProvider.ZONKY)
+@AutoConfigureEmbeddedDatabase(provider = AutoConfigureEmbeddedDatabase.DatabaseProvider.EMBEDDED)
 @AutoConfigureMockMvc
 @ActiveProfiles("test")
 class DashboardAuthIntegrationTest {
@@ -119,8 +119,8 @@ class DashboardAuthIntegrationTest {
         Shop shop = signup();
 
         JsonNode me = shop.owner().json(HttpMethod.GET, "/api/auth/me", null, 200);
-        assertEquals("OWNER", me.get("user").get("role").asText());
-        assertEquals("Цэцэг дэлгүүр", me.get("business").get("name").asText());
+        assertEquals("OWNER", me.get("user").get("role").asString());
+        assertEquals("Цэцэг дэлгүүр", me.get("business").get("name").asString());
         assertEquals(200, shop.owner().status(HttpMethod.GET, "/api/businesses/" + shop.businessId() + "/orders", null));
         assertEquals(201, shop.owner().status(HttpMethod.POST, "/api/businesses/" + shop.businessId() + "/categories",
                 Map.of("name", "Цэцэг")));
@@ -203,9 +203,9 @@ class DashboardAuthIntegrationTest {
                 Map.of("email", uniqueEmail("staff"), "name", "Сараа", "role", "STAFF"), 201);
         assertTrue(invitation.get("user").get("invitePending").asBoolean());
 
-        Browser staff = acceptInvite(invitation.get("link").get("url").asText());
+        Browser staff = acceptInvite(invitation.get("link").get("url").asString());
 
-        assertEquals("STAFF", staff.json(HttpMethod.GET, "/api/auth/me", null, 200).get("user").get("role").asText());
+        assertEquals("STAFF", staff.json(HttpMethod.GET, "/api/auth/me", null, 200).get("user").get("role").asString());
         assertEquals(200, staff.status(HttpMethod.GET, base + "/orders", null));
         assertEquals(201, staff.status(HttpMethod.POST, base + "/categories", Map.of("name", "Бэлэг")));
         assertEquals(403, staff.status(HttpMethod.GET, base + "/staff", null));
@@ -219,14 +219,14 @@ class DashboardAuthIntegrationTest {
     void inviteLinksWorkOnce() throws Exception {
         Shop shop = signup();
         String url = shop.owner().json(HttpMethod.POST, "/api/businesses/" + shop.businessId() + "/staff",
-                Map.of("email", uniqueEmail("staff"), "role", "STAFF"), 201).get("link").get("url").asText();
+                Map.of("email", uniqueEmail("staff"), "role", "STAFF"), 201).get("link").get("url").asString();
         String token = url.substring(url.lastIndexOf('/') + 1);
         assertTrue(url.startsWith("http://localhost:8080/invite/"), url);
 
         Browser browser = new Browser();
         JsonNode info = browser.json(HttpMethod.GET, "/api/auth/links/" + token, null, 200);
-        assertEquals("Цэцэг дэлгүүр", info.get("businessName").asText());
-        assertEquals("INVITE", info.get("purpose").asText());
+        assertEquals("Цэцэг дэлгүүр", info.get("businessName").asString());
+        assertEquals("INVITE", info.get("purpose").asString());
 
         acceptInvite(url);
         assertEquals(401, new Browser().status(HttpMethod.POST, "/api/auth/links/accept",
@@ -239,7 +239,7 @@ class DashboardAuthIntegrationTest {
         String base = "/api/businesses/" + shop.businessId();
         JsonNode invitation = shop.owner().json(HttpMethod.POST, base + "/staff",
                 Map.of("email", uniqueEmail("staff"), "role", "STAFF"), 201);
-        Browser staff = acceptInvite(invitation.get("link").get("url").asText());
+        Browser staff = acceptInvite(invitation.get("link").get("url").asString());
         long staffId = invitation.get("user").get("id").asLong();
 
         shop.owner().json(HttpMethod.PUT, base + "/staff/" + staffId, Map.of("active", false), 200);
@@ -292,7 +292,7 @@ class DashboardAuthIntegrationTest {
         Shop shop = signup();
 
         String apiKey = shop.owner().json(HttpMethod.POST, "/api/businesses/" + shop.businessId() + "/api-key", null, 200)
-                .get("apiKey").asText();
+                .get("apiKey").asString();
 
         assertEquals(200, mockMvc.perform(MockMvcRequestBuilders.get("/api/businesses/" + shop.businessId() + "/orders")
                 .header("X-API-Key", apiKey)).andReturn().getResponse().getStatus());
@@ -312,11 +312,11 @@ class DashboardAuthIntegrationTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(Map.of("email", email, "name", "Owner"))))
                 .andReturn().getResponse().getContentAsString();
-        Browser owner = acceptInvite(objectMapper.readTree(invitation).get("link").get("url").asText());
+        Browser owner = acceptInvite(objectMapper.readTree(invitation).get("link").get("url").asString());
 
         JsonNode me = owner.json(HttpMethod.GET, "/api/auth/me", null, 200);
         assertEquals(businessId, me.get("business").get("id").asLong());
-        assertEquals("OWNER", me.get("user").get("role").asText());
+        assertEquals("OWNER", me.get("user").get("role").asString());
     }
 
     @Test
@@ -333,14 +333,14 @@ class DashboardAuthIntegrationTest {
         assertEquals(200, response.getStatus());
         JsonNode owner = null;
         for (JsonNode user : objectMapper.readTree(response.getContentAsString(StandardCharsets.UTF_8))) {
-            if (shop.ownerEmail().equals(user.get("email").asText())) {
+            if (shop.ownerEmail().equals(user.get("email").asString())) {
                 owner = user;
             }
         }
         assertNotNull(owner);
-        assertEquals("OWNER", owner.get("role").asText());
+        assertEquals("OWNER", owner.get("role").asString());
         assertEquals(shop.businessId(), owner.get("businessId").asLong());
-        assertEquals("Цэцэг дэлгүүр", owner.get("businessName").asText());
+        assertEquals("Цэцэг дэлгүүр", owner.get("businessName").asString());
         assertFalse(owner.get("invitePending").asBoolean());
         assertFalse(owner.has("passwordHash"));
 

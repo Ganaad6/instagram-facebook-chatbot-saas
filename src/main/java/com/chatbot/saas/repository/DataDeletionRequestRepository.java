@@ -8,6 +8,5 @@ import java.util.Optional;
 
 @Repository
 public interface DataDeletionRequestRepository extends JpaRepository<DataDeletionRequest, Long> {
-
     Optional<DataDeletionRequest> findByConfirmationCode(String confirmationCode);
 }

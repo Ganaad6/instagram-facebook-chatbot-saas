@@ -33,7 +33,9 @@ everything from a web dashboard (Mongolian UI).
 
 The stack is `docker-compose.yml`: PostgreSQL, the app (API + dashboard in one container) and
 [Caddy](https://caddyserver.com) in front for HTTPS with automatic Let's Encrypt certificates.
-It runs on any Linux server with Docker - a small VPS (2 GB RAM) is plenty to start.
+It runs on any Linux server with Docker - a small VPS (4 GB RAM) is plenty to start.
+**Step-by-step for Hetzner Cloud** (server, firewall, Docker, backups, upgrades, recovery):
+[docs/DEPLOY_HETZNER.md](docs/DEPLOY_HETZNER.md).
 
 1. **Server and DNS.** Install Docker with Compose v2. Point your domain's DNS A record (e.g.
    `shop.example.mn`) at the server and open ports 80 and 443.
@@ -73,7 +75,14 @@ scripts/smoke-test.sh --keep   # same, but leaves it running to click around
    `${BASE_URL}/webhook`, verify token `WEBHOOK_VERIFY_TOKEN`, fields `messages`,
    `messaging_postbacks` and `message_echoes` (echoes are how the app notices staff replying
    from the Meta inbox). Each Page a shop connects is subscribed to the app automatically.
-4. Request **Advanced Access** via App Review for `pages_show_list`, `pages_messaging`,
+4. Under **App settings → Basic**, set the **Privacy Policy URL** to `${BASE_URL}/privacy`, the
+   **Terms of Service URL** to `${BASE_URL}/terms` and **User data deletion** to "Data deletion
+   callback URL" `${BASE_URL}/webhook/meta/data-deletion`. Under **Facebook Login → Settings**,
+   set the **Deauthorize callback URL** to `${BASE_URL}/webhook/meta/deauthorize`. The pages
+   show `LEGAL_OPERATOR_NAME` / `LEGAL_CONTACT_EMAIL` / `LEGAL_ADDRESS`; the policy and terms
+   texts are in `frontend/src/pages/LegalPages.tsx` - have them reviewed for your business
+   before launch.
+5. Request **Advanced Access** via App Review for `pages_show_list`, `pages_messaging`,
    `pages_manage_metadata`, `instagram_basic` and `instagram_manage_messages`, plus the
    **Human Agent** feature if staff will reply more than 24 hours after a customer's last
    message. Until approved, only people with a role on the app can connect a Page or chat with
@@ -124,6 +133,9 @@ customers' messages until it is reactivated.
 ### Backups
 
 Everything - orders, chats, the catalog and product photos - is in PostgreSQL:
+
+`scripts/backup.sh` dumps the database, checks the dump and copies it off the server with
+rclone - see [docs/DEPLOY_HETZNER.md](docs/DEPLOY_HETZNER.md#11-backups) for the cron setup. By hand:
 
 ```bash
 # Nightly dump (e.g. from cron on the host); keep copies off the server
@@ -204,6 +216,8 @@ All settings are environment variables (see `.env.example` for a commented templ
 | `CHATBOT_CONVERSATION_TIMEOUT_HOURS` | Idle hours before an unfinished order conversation is abandoned (default 24) |
 | `CHATBOT_HANDOFF_TIMEOUT_HOURS` | Hours the bot stays paused after a handoff request or staff reply (default 12) |
 | `CORS_ALLOWED_ORIGINS` | Other browser apps allowed to call the API (never `*` in production) |
+| `LEGAL_OPERATOR_NAME`, `LEGAL_CONTACT_EMAIL`, `LEGAL_ADDRESS` | Who runs the service, shown on `/privacy`, `/terms` and `/data-deletion` (name and email required under `prod`) |
+| `PRIVACY_MESSAGE_RETENTION_DAYS` | Chat messages older than this are deleted nightly; orders are kept (default 365, `0` = forever) |
 | `TZ` | Time zone for timestamps and "today" (default `Asia/Ulaanbaatar`) |
 | `LOG_LEVEL`, `FORWARD_HEADERS_STRATEGY`, `APP_PORT` | Operations (see `.env.example`) |
 
@@ -221,6 +235,10 @@ All settings are environment variables (see `.env.example` for a commented templ
   callback by a signed, expiring `state`, the QPay callback by an HMAC token plus confirming
   every payment with QPay, product photos by random ids.
 - **Secrets at rest:** Meta Page tokens and QPay passwords are AES-GCM encrypted.
+- **Personal data:** chat messages are deleted after `PRIVACY_MESSAGE_RETENTION_DAYS`. An owner
+  can erase a customer from the chat view (history deleted, contact details removed from
+  orders). Meta's deauthorize and data-deletion callbacks (signed with the app secret) remove
+  the Facebook connection of the person who made the request.
 - **Shop-supplied URLs:** notification webhooks must be public `https://` addresses; private,
   loopback and metadata addresses are refused when saved and again when connecting.
 - **Headers:** a strict Content-Security-Policy (the dashboard loads only its own files),

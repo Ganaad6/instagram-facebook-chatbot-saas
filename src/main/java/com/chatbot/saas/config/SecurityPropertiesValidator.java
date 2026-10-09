@@ -55,6 +55,12 @@ public class SecurityPropertiesValidator {
     @Value("${qpay.api-url:}")
     private String qpayApiUrl;
 
+    @Value("${legal.operator-name:}")
+    private String legalOperatorName;
+
+    @Value("${legal.contact-email:}")
+    private String legalContactEmail;
+
     private static boolean isPlaceholder(String value) {
         String lower = value.toLowerCase();
         return TEMPLATE_PLACEHOLDERS.stream().anyMatch(lower::startsWith);
@@ -94,6 +100,12 @@ public class SecurityPropertiesValidator {
         if (!qpayApiUrl.startsWith("https://") || qpayApiUrl.contains("sandbox")) {
             // Customers would be sent sandbox invoices that can't take real payments
             problems.add("QPAY_API_URL must be the production QPay API (https://merchant.qpay.mn/v2)");
+        }
+
+        if (legalOperatorName.isBlank() || isPlaceholder(legalOperatorName)
+                || !legalContactEmail.contains("@") || isPlaceholder(legalContactEmail)) {
+            // The privacy policy and terms must say who runs the service and how to reach them
+            problems.add("LEGAL_OPERATOR_NAME and LEGAL_CONTACT_EMAIL must be set");
         }
 
         if (!problems.isEmpty()) {

@@ -64,7 +64,7 @@ public class CustomerService {
     @Transactional
     public Customer lockForBusiness(Long businessId, Long customerId) {
         return customerRepository.findByIdForUpdate(customerId)
-                .filter(c -> c.getBusiness().getId().equals(businessId))
+                .filter(c -> c.getBusiness().getId().equals(businessId) && c.getErasedAt() == null)
                 .orElseThrow(() -> new CustomerNotFoundException(customerId));
     }
 
@@ -72,7 +72,7 @@ public class CustomerService {
     @Transactional(readOnly = true)
     public void assertBelongsTo(Long businessId, Long customerId) {
         customerRepository.findById(customerId)
-                .filter(c -> c.getBusiness().getId().equals(businessId))
+                .filter(c -> c.getBusiness().getId().equals(businessId) && c.getErasedAt() == null)
                 .orElseThrow(() -> new CustomerNotFoundException(customerId));
     }
 
@@ -119,7 +119,7 @@ public class CustomerService {
 
     @Transactional(readOnly = true)
     public List<CustomerResponse> getCustomersByBusiness(Long businessId) {
-        return customerRepository.findAllByBusinessId(businessId)
+        return customerRepository.findAllByBusinessIdAndErasedAtIsNull(businessId)
                 .stream()
                 .map(CustomerResponse::from)
                 .collect(Collectors.toList());

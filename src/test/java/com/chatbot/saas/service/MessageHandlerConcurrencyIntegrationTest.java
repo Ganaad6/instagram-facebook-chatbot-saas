@@ -14,7 +14,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 import org.springframework.test.context.ActiveProfiles;
 
@@ -32,7 +32,7 @@ import static org.mockito.Mockito.*;
  * and one stored copy of each message.
  */
 @SpringBootTest
-@AutoConfigureEmbeddedDatabase(provider = AutoConfigureEmbeddedDatabase.DatabaseProvider.ZONKY)
+@AutoConfigureEmbeddedDatabase(provider = AutoConfigureEmbeddedDatabase.DatabaseProvider.EMBEDDED)
 @ActiveProfiles("test")
 class MessageHandlerConcurrencyIntegrationTest {
 
@@ -44,7 +44,7 @@ class MessageHandlerConcurrencyIntegrationTest {
     @Autowired private EncryptionUtil encryptionUtil;
     @Autowired private ThreadPoolTaskExecutor taskExecutor;
 
-    @MockBean private MetaReplyService metaReplyService;
+    @MockitoBean private MetaReplyService metaReplyService;
 
     private Business business;
     private String pageId;

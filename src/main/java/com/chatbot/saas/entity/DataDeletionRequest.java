@@ -5,7 +5,7 @@ import lombok.*;
 
 import java.time.LocalDateTime;
 
-/** A data-deletion request Meta forwarded for a Facebook user; its code opens the public status page. */
+/** A completed Meta data-deletion request; who asked is deliberately not stored. */
 @Entity
 @Table(name = "data_deletion_requests")
 @Data
@@ -21,12 +21,10 @@ public class DataDeletionRequest {
     @Column(name = "confirmation_code", nullable = false, unique = true)
     private String confirmationCode;
 
-    @Column(name = "shops_affected", nullable = false)
-    private int shopsAffected;
+    /** How many shops' Facebook connections were removed. */
+    @Column(name = "connections_removed", nullable = false)
+    private int connectionsRemoved;
 
-    @Column(name = "requested_at", nullable = false)
-    private LocalDateTime requestedAt;
-
-    @Column(name = "completed_at")
+    @Column(name = "completed_at", nullable = false)
     private LocalDateTime completedAt;
 }

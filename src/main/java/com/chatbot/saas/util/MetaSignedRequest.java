@@ -1,17 +1,18 @@
 package com.chatbot.saas.util;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 import org.apache.commons.codec.digest.HmacAlgorithms;
 import org.apache.commons.codec.digest.HmacUtils;
 
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.util.Base64;
+import java.util.Optional;
 
 /**
- * Meta's signed_request (deauthorize and data-deletion callbacks): base64url(signature) "."
- * base64url(json), where signature = HMAC-SHA256(json part, app secret).
+ * Meta's {@code signed_request} (deauthorize and data-deletion callbacks):
+ * {@code base64url(HMAC-SHA256(payload part, app secret)) + "." + base64url(JSON payload)}.
  */
 public final class MetaSignedRequest {
 
@@ -20,30 +21,31 @@ public final class MetaSignedRequest {
     private MetaSignedRequest() {
     }
 
-    /** @return the app-scoped user id, or null if the request is malformed or not signed with this secret */
-    public static String verifiedUserId(String signedRequest, String appSecret) {
-        if (signedRequest == null || appSecret == null || appSecret.isEmpty()) {
-            return null;
+    /** The {@code user_id} it was issued for, or empty if it is malformed or not signed with the secret. */
+    public static Optional<String> verifiedUserId(String signedRequest, String appSecret) {
+        if (signedRequest == null || appSecret == null || appSecret.isBlank()) {
+            return Optional.empty();
         }
-        String[] parts = signedRequest.split("\\.", 2);
-        if (parts.length != 2) {
-            return null;
+        int dot = signedRequest.indexOf('.');
+        if (dot <= 0 || dot == signedRequest.length() - 1) {
+            return Optional.empty();
         }
+        String encodedPayload = signedRequest.substring(dot + 1);
         try {
-            byte[] signature = Base64.getUrlDecoder().decode(parts[0]);
-            byte[] expected = new HmacUtils(HmacAlgorithms.HMAC_SHA_256, appSecret)
-                    .hmac(parts[1].getBytes(StandardCharsets.US_ASCII));
+            byte[] signature = Base64.getUrlDecoder().decode(signedRequest.substring(0, dot));
+            byte[] expected = new HmacUtils(HmacAlgorithms.HMAC_SHA_256, appSecret).hmac(encodedPayload);
             if (!MessageDigest.isEqual(expected, signature)) {
-                return null;
+                return Optional.empty();
             }
-            JsonNode payload = OBJECT_MAPPER.readTree(Base64.getUrlDecoder().decode(parts[1]));
-            if (!"HMAC-SHA256".equalsIgnoreCase(payload.path("algorithm").asText())
+            JsonNode payload = OBJECT_MAPPER.readTree(
+                    new String(Base64.getUrlDecoder().decode(encodedPayload), StandardCharsets.UTF_8));
+            if (!"HMAC-SHA256".equalsIgnoreCase(payload.path("algorithm").asString())
                     || !payload.hasNonNull("user_id")) {
-                return null;
+                return Optional.empty();
             }
-            return payload.get("user_id").asText();
+            return Optional.of(payload.get("user_id").asString());
         } catch (Exception e) {
-            return null;
+            return Optional.empty();
         }
     }
 }

@@ -8,16 +8,16 @@ import com.chatbot.saas.service.QPayClient.Credentials;
 import com.chatbot.saas.service.QPayClient.Invoice;
 import com.chatbot.saas.service.QPayClient.PaymentCheck;
 import com.chatbot.saas.util.EncryptionUtil;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 import io.zonky.test.db.AutoConfigureEmbeddedDatabase;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
+import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.http.MediaType;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 import org.springframework.test.context.ActiveProfiles;
@@ -41,7 +41,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * callback over HTTP, and the shop's payment API. Only QPay and Meta are faked.
  */
 @SpringBootTest
-@AutoConfigureEmbeddedDatabase(provider = AutoConfigureEmbeddedDatabase.DatabaseProvider.ZONKY)
+@AutoConfigureEmbeddedDatabase(provider = AutoConfigureEmbeddedDatabase.DatabaseProvider.EMBEDDED)
 @AutoConfigureMockMvc
 @ActiveProfiles("test")
 class PaymentIntegrationTest {
@@ -59,8 +59,8 @@ class PaymentIntegrationTest {
     @Autowired private EncryptionUtil encryptionUtil;
     @Autowired private ThreadPoolTaskExecutor taskExecutor;
 
-    @MockBean private MetaReplyService metaReplyService;
-    @MockBean private QPayClient qpayClient;
+    @MockitoBean private MetaReplyService metaReplyService;
+    @MockitoBean private QPayClient qpayClient;
 
     private final ObjectMapper objectMapper = new ObjectMapper();
     private final AtomicInteger mids = new AtomicInteger();
@@ -75,7 +75,7 @@ class PaymentIntegrationTest {
         psid = "psid-" + System.nanoTime();
         JsonNode registered = register(pageId);
         businessId = registered.get("id").asLong();
-        apiKey = registered.get("apiKey").asText();
+        apiKey = registered.get("apiKey").asString();
 
         Business business = businessRepository.findById(businessId).orElseThrow();
         business.setFacebookPageId(pageId);
@@ -183,7 +183,7 @@ class PaymentIntegrationTest {
         String json = mockMvc.perform(get("/api/businesses/" + businessId + "/orders/" + order.getId())
                         .header("X-API-Key", apiKey))
                 .andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
-        assertEquals("PAID", objectMapper.readTree(json).get("paymentStatus").asText());
+        assertEquals("PAID", objectMapper.readTree(json).get("paymentStatus").asString());
     }
 
     @Test
@@ -237,7 +237,7 @@ class PaymentIntegrationTest {
     void anotherShopCannotConfigureOrCheckPayments() throws Exception {
         connectQPay();
         Order order = placeOrder();
-        String otherKey = register("other-" + System.nanoTime()).get("apiKey").asText();
+        String otherKey = register("other-" + System.nanoTime()).get("apiKey").asString();
 
         mockMvc.perform(put("/api/businesses/" + businessId + "/payments/qpay")
                         .header("X-API-Key", otherKey)
@@ -261,7 +261,7 @@ class PaymentIntegrationTest {
                         .header("X-API-Key", apiKey))
                 .andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
 
-        assertEquals("PAID", objectMapper.readTree(json).get("paymentStatus").asText());
+        assertEquals("PAID", objectMapper.readTree(json).get("paymentStatus").asString());
     }
 
     @Test

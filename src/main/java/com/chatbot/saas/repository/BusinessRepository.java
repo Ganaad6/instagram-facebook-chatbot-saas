@@ -14,5 +14,5 @@ public interface BusinessRepository extends JpaRepository<Business, Long> {
     Optional<Business> findByEmail(String email);
     boolean existsByEmailIgnoreCase(String email);
     Optional<Business> findByApiKeyHash(String apiKeyHash);
-    List<Business> findByMetaUserId(String metaUserId);
+    List<Business> findAllByMetaUserId(String metaUserId);
 }

@@ -1,11 +1,11 @@
 package com.chatbot.saas.security;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
-import org.springframework.boot.autoconfigure.security.SecurityProperties;
+import org.springframework.boot.security.autoconfigure.web.servlet.SecurityFilterProperties;
 import org.springframework.context.annotation.Profile;
 import org.springframework.core.annotation.Order;
 import org.springframework.http.MediaType;
@@ -40,7 +40,7 @@ import java.util.function.LongSupplier;
  */
 @Component
 @Profile("!test")
-@Order(SecurityProperties.DEFAULT_FILTER_ORDER - 10)
+@Order(SecurityFilterProperties.DEFAULT_FILTER_ORDER - 10)
 public class RateLimitFilter extends OncePerRequestFilter {
 
     static final long WINDOW_MILLIS = 60_000;
