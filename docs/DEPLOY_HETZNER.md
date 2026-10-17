@@ -35,8 +35,7 @@ that, Storage Box for off-server dumps ~€4/month, plus the domain.
 - [ ] An **SSH key** on your laptop (`ls ~/.ssh/id_ed25519.pub`; create one with
       `ssh-keygen -t ed25519` if missing).
 - [ ] The **Meta app** id and secret (developers.facebook.com → your app → App settings → Basic).
-- [ ] The branch you deploy is pushed to GitHub. `main` is currently behind the working branch.
-      Merge first, or deploy the working branch by name in step 7.
+- [ ] The branch you deploy is pushed to GitHub. Deploy `main`.
 
 ## 2. Create the server
 
@@ -179,7 +178,7 @@ On GitHub: repository → **Settings → Deploy keys → Add deploy key**, paste
 ```bash
 git clone git@github.com:Ganaad6/instagram-facebook-chatbot-saas.git ~/chatshop
 cd ~/chatshop
-git checkout main             # or the branch you deploy, see step 1
+git checkout main
 ```
 
 Optional but worthwhile: run the full-stack smoke test once on the server before configuring.

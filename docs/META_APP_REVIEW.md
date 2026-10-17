@@ -45,7 +45,7 @@ Paste one per permission in App Review → Permissions and features → Request 
 **pages_messaging**
 > Our app is a sales chatbot for small online shops. A shop connects its Facebook Page in our web
 > dashboard; when a customer messages the Page, our app replies on the shop's behalf with the shop's
-> product catalogue (product cards with photo, price and an "Order" button), takes the order (quantity,
+> product catalogue (product cards with photo, price and an "Order" button), takes the order (confirm,
 > name, phone, delivery address) and sends an order confirmation and an optional payment link. Shop
 > staff can also read the conversation and reply from our dashboard. We only reply to messages the
 > customer sent first, within the 24-hour messaging window, and never send promotional messages.
@@ -91,7 +91,7 @@ One recording can cover several permissions; upload it on each. Record in Englis
 **Video B – Messenger (pages_messaging)**
 1. Split screen: phone/browser as a customer on Messenger, dashboard on the other side.
 2. Customer sends "Hi" to the Page → bot replies with the greeting and menu.
-3. Customer opens products → product cards appear → taps **Order** → enters quantity, name, phone,
+3. Customer opens products → product cards appear → taps **Order** → confirms, enters name, phone,
    address → bot sends the order confirmation with the order number.
 4. Dashboard → Orders: the new order appears. Chats: the conversation appears; staff types a reply
    and the customer receives it in Messenger.
@@ -110,7 +110,7 @@ Email: reviewer@YOUR-DOMAIN   Password: <create one, see below>
    (and its linked Instagram professional account).
 3. From another Facebook/Instagram account, send "Hi" to that Page / Instagram account.
    The bot replies with a menu. Choose "Products", tap "Order" on a product and follow the
-   steps (quantity, name, phone, address). You receive an order confirmation.
+   steps (confirm, name, phone, address). You receive an order confirmation.
 4. In the dashboard: Orders shows the order; Chats shows the conversation, where you can
    type a reply that is delivered to the customer.
 

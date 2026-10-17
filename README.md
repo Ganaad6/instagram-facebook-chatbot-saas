@@ -6,8 +6,8 @@ the conversation to staff when a customer asks for a person. Shop owners and sta
 everything from a web dashboard (Mongolian UI).
 
 ## Features
-- **Chatbot** for Facebook Messenger and Instagram DMs: category → product → quantity →
-  confirmation → contact details → order, with product photos and restart keywords
+- **Chatbot** for Facebook Messenger and Instagram DMs: category → product →
+  confirmation (one item per order) → contact details → order, with product photos and restart keywords
 - **QPay payments**: each shop connects its own QPay merchant account; orders get a payment
   link, payments are confirmed with QPay and the customer is thanked in chat
 - **Human handoff**: customers can ask for a person; staff reply from the dashboard or their
@@ -255,7 +255,7 @@ All settings are environment variables (see `.env.example` for a commented templ
 - Products are sent as cards that scroll sideways (photo, name, price, description and a
   **Захиалах** button), numbered so typing the number also works. A card's button works even
   from an older message. If Meta refuses the cards, the photos and a numbered list are sent.
-- Choices (menus, quantity, yes/no) come with quick-reply buttons on both Messenger and
+- Choices (menus, yes/no) come with quick-reply buttons on both Messenger and
   Instagram; Instagram shows them only in its phone app, so the numbers are always in the text.
   If Meta refuses a message with buttons, it is resent as plain text.
 - The phone question offers Meta's "share my number" button.

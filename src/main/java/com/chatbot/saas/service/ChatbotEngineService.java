@@ -18,18 +18,19 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
-import java.util.stream.IntStream;
 
 /**
  * State-machine based chatbot engine for the product-order flow.
  *
  * States:
- *   IDLE → AWAITING_CATEGORY → AWAITING_PRODUCT → AWAITING_QUANTITY → AWAITING_CONFIRMATION
+ *   IDLE → AWAITING_CATEGORY → AWAITING_PRODUCT → AWAITING_CONFIRMATION
  *        → COLLECT_NAME → COLLECT_PHONE → COLLECT_ADDRESS → ORDER_SAVED
  *   AWAITING_CONFIRMATION → AWAITING_CATEGORY (user says no)
  *   any state → AWAITING_CATEGORY on a restart keyword (e.g. "цэс" / "menu")
  *   IDLE → POST_ORDER when the customer still has an open order: they get its status once,
  *        then the bot stays quiet until they ask for the menu (or a person)
+ *
+ * Every order is for one item of the chosen product; there is no quantity step.
  *
  * Input the bot can't use gets a short hint first; on the second miss in a row it offers a
  * person ("оператор") and shows the choices again, after that only the offer.
@@ -50,8 +51,6 @@ public class ChatbotEngineService {
     private static final String MONGOLIAN_PHONE_REGEX = "^\\d{8}$";
     private static final String HUMAN_HINT = "Асуулт байвал \"оператор\" гэж бичээрэй.";
     private static final Set<String> RESTART_KEYWORDS = Set.of("цэс", "эхлэх", "дахин", "menu", "start", "restart");
-    static final int MAX_QUANTITY = 99;
-    private static final int QUANTITY_SHORTCUTS = 5;
     /** Postback payload of a product card's button: PRODUCT_&lt;id&gt;. */
     static final String PRODUCT_PAYLOAD = "PRODUCT_";
     private static final int MAX_DESCRIPTION = 300;
@@ -100,7 +99,11 @@ public class ChatbotEngineService {
             case IDLE -> greet(chat);
             case AWAITING_CATEGORY -> handleAwaitingCategory(chat, input);
             case AWAITING_PRODUCT -> handleAwaitingProduct(chat, input);
-            case AWAITING_QUANTITY -> handleAwaitingQuantity(chat, input);
+            // Left over from when the bot asked for a quantity: carry on to the confirmation
+            case AWAITING_QUANTITY -> {
+                saveState(conversation, Conversation.State.AWAITING_CONFIRMATION);
+                showConfirmation(chat);
+            }
             case AWAITING_CONFIRMATION -> handleAwaitingConfirmation(chat, input);
             case CONFIRM_SAVED_DETAILS -> handleConfirmSavedDetails(chat, input);
             case COLLECT_NAME -> handleCollectName(chat, input);
@@ -152,18 +155,7 @@ public class ChatbotEngineService {
             return;
         }
         conversation.setSelectedProduct(products.get(choice - 1));
-        saveState(conversation, Conversation.State.AWAITING_QUANTITY);
-        askQuantity(chat);
-    }
-
-    private void handleAwaitingQuantity(Chat chat, String userInput) {
-        Integer quantity = parseChoice(userInput);
-        if (quantity == null || quantity < 1 || quantity > MAX_QUANTITY) {
-            rejectInput(chat, userInput, "Тоо ширхэгээ 1–" + MAX_QUANTITY + " хооронд тоогоор", () -> askQuantity(chat));
-            return;
-        }
-        chat.conversation().setSelectedQuantity(quantity);
-        saveState(chat.conversation(), Conversation.State.AWAITING_CONFIRMATION);
+        saveState(conversation, Conversation.State.AWAITING_CONFIRMATION);
         showConfirmation(chat);
     }
 
@@ -285,8 +277,8 @@ public class ChatbotEngineService {
         }
         conversation.setSelectedCategory(product.get().getCategory());
         conversation.setSelectedProduct(product.get());
-        saveState(conversation, Conversation.State.AWAITING_QUANTITY);
-        askQuantity(chat);
+        saveState(conversation, Conversation.State.AWAITING_CONFIRMATION);
+        showConfirmation(chat);
     }
 
     private void placeOrder(Chat chat) {
@@ -298,7 +290,7 @@ public class ChatbotEngineService {
                 conversation.getBusiness(),
                 conversation.getCustomer(),
                 conversation.getSelectedProduct(),
-                quantityOf(conversation),
+                1,
                 conversation.getCollectedName(),
                 conversation.getCollectedPhone(),
                 conversation.getCollectedAddress(),
@@ -320,14 +312,13 @@ public class ChatbotEngineService {
         }
         reply(chat, String.format(
                 "✅ Захиалга #%d бүртгэгдлээ!\n" +
-                "📦 %s × %d — %s\n" +
+                "📦 %s — %s\n" +
                 "👤 %s · 📞 %s\n" +
                 "📍 %s\n\n" +
                 "%s\n" +
                 "%s",
                 order.getId(),
                 order.getProductName(),
-                order.getQuantity(),
                 formatPrice(order.getTotalAmount()),
                 conversation.getCollectedName(),
                 conversation.getCollectedPhone(),
@@ -359,8 +350,8 @@ public class ChatbotEngineService {
         }
         Order order = open.get();
         StringBuilder text = new StringBuilder(String.format(
-                "Сайн байна уу! Таны #%d захиалга (%s × %d) %s.",
-                order.getId(), order.getProductName(), order.getQuantity(),
+                "Сайн байна уу! Таны #%d захиалга (%s) %s.",
+                order.getId(), order.getProductName(),
                 order.getStatus() == Order.Status.CONFIRMED ? "баталгаажсан" : "бүртгэгдсэн, шалгагдаж байна"));
         if (order.getPaymentStatus() == Order.PaymentStatus.PAID) {
             text.append("\nТөлбөр төлөгдсөн ✅");
@@ -436,28 +427,15 @@ public class ChatbotEngineService {
         replyMenu(chat, category.getName() + " 🛍️ Бүтээгдэхүүнээ сонгоно уу:", items);
     }
 
-    private void askQuantity(Chat chat) {
-        Product product = chat.conversation().getSelectedProduct();
+    private void showConfirmation(Chat chat) {
+        Conversation conversation = chat.conversation();
+        Product product = conversation.getSelectedProduct();
         StringBuilder text = new StringBuilder(product.getName() + " — " + formatPrice(product.getPrice()));
         if (StringUtils.hasText(product.getDescription())) {
             text.append("\n").append(truncate(product.getDescription().strip(), MAX_DESCRIPTION));
         }
-        text.append("\n\nХэдэн ширхэг авах вэ? (1–").append(MAX_QUANTITY).append(")");
-        List<Map<String, String>> shortcuts = IntStream.rangeClosed(1, QUANTITY_SHORTCUTS)
-                .mapToObj(String::valueOf)
-                .map(n -> option(n, n))
-                .collect(Collectors.toList());
-        replyChoices(chat, text.toString(), shortcuts);
-    }
-
-    private void showConfirmation(Chat chat) {
-        Conversation conversation = chat.conversation();
-        Product product = conversation.getSelectedProduct();
-        int quantity = quantityOf(conversation);
-        BigDecimal total = product.getPrice().multiply(BigDecimal.valueOf(quantity));
-        replyChoices(chat, String.format(
-                "Та %s × %d — нийт %s захиалах гэж байна.\nЗөв үү?\n1. Тийм ✅\n0. Буцах 🔙",
-                product.getName(), quantity, formatPrice(total)),
+        text.append("\n\nЭнэ барааг захиалах уу?\n1. Тийм ✅\n0. Буцах 🔙");
+        replyChoices(chat, text.toString(),
                 List.of(option("✅ Тийм", "1"), option("🔙 Буцах", "0")));
     }
 
@@ -535,11 +513,6 @@ public class ChatbotEngineService {
 
     static String formatPrice(BigDecimal amount) {
         return String.format("₮%,.0f", amount.doubleValue());
-    }
-
-    /** Conversations that reached confirmation before quantities existed default to 1. */
-    private static int quantityOf(Conversation conversation) {
-        return conversation.getSelectedQuantity() != null ? conversation.getSelectedQuantity() : 1;
     }
 
     private boolean isAvailable(Product product) {

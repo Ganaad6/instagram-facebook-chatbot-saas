@@ -113,9 +113,9 @@ class PaymentIntegrationTest {
                 .andExpect(status().isOk());
     }
 
-    /** Walks the bot's menu to a placed order of 2 × Red shoes. */
+    /** Walks the bot's menu to a placed order of Red shoes. */
     private Order placeOrder() throws InterruptedException {
-        for (String text : List.of("сайн уу", "1", "1", "2", "1", "Бат", "99112233", "Хан-Уул, 3-р хороо")) {
+        for (String text : List.of("сайн уу", "1", "1", "1", "Бат", "99112233", "Хан-Уул, 3-р хороо")) {
             messageHandlerService.handleIncomingMessage(
                     new InboundMessage("FACEBOOK", psid, pageId, "m_in_" + mids.incrementAndGet(), text));
             awaitIdle();
@@ -147,8 +147,8 @@ class PaymentIntegrationTest {
         assertEquals(Order.PaymentStatus.PENDING, order.getPaymentStatus());
         assertEquals(PAY_URL, order.getPaymentUrl());
         verify(qpayClient).createInvoice(eq(new Credentials("SHOP_MERCHANT", "qpay-secret", "SHOP_INVOICE")),
-                eq("ORDER-" + order.getId()), contains("Red shoes × 2"),
-                argThat(amount -> amount.compareTo(new BigDecimal("20000")) == 0), anyString());
+                eq("ORDER-" + order.getId()), contains("Red shoes"),
+                argThat(amount -> amount.compareTo(new BigDecimal("10000")) == 0), anyString());
         verify(metaReplyService).sendText(eq(psid), contains(PAY_URL), eq("page-token"));
 
         URI callback = URI.create(capturedCallbackUrl());
@@ -164,7 +164,7 @@ class PaymentIntegrationTest {
         assertEquals(Order.PaymentStatus.PENDING, reload(order).getPaymentStatus());
 
         // Paid
-        when(qpayClient.checkPayment(any(), eq("inv-" + pageId))).thenReturn(new PaymentCheck(new BigDecimal("20000.00"), "pay-1"));
+        when(qpayClient.checkPayment(any(), eq("inv-" + pageId))).thenReturn(new PaymentCheck(new BigDecimal("10000.00"), "pay-1"));
         mockMvc.perform(post(callback.getPath() + "?" + callback.getQuery())).andExpect(status().isOk());
 
         Order paid = reload(order);
@@ -190,7 +190,7 @@ class PaymentIntegrationTest {
     void underpaymentIsNotRecordedAsPaid() throws Exception {
         connectQPay();
         Order order = placeOrder();
-        when(qpayClient.checkPayment(any(), anyString())).thenReturn(new PaymentCheck(new BigDecimal("10000"), "pay-1"));
+        when(qpayClient.checkPayment(any(), anyString())).thenReturn(new PaymentCheck(new BigDecimal("5000"), "pay-1"));
 
         URI callback = URI.create(capturedCallbackUrl());
         mockMvc.perform(get(callback.getPath() + "?" + callback.getQuery())).andExpect(status().isOk());
@@ -255,7 +255,7 @@ class PaymentIntegrationTest {
     void shopCanCheckAPaymentManually() throws Exception {
         connectQPay();
         Order order = placeOrder();
-        when(qpayClient.checkPayment(any(), anyString())).thenReturn(new PaymentCheck(new BigDecimal("20000"), "pay-9"));
+        when(qpayClient.checkPayment(any(), anyString())).thenReturn(new PaymentCheck(new BigDecimal("10000"), "pay-9"));
 
         String json = mockMvc.perform(post("/api/businesses/" + businessId + "/orders/" + order.getId() + "/payment/check")
                         .header("X-API-Key", apiKey))
@@ -268,7 +268,7 @@ class PaymentIntegrationTest {
     void reconcileCatchesAMissedCallback() throws Exception {
         connectQPay();
         Order order = placeOrder();
-        when(qpayClient.checkPayment(any(), anyString())).thenReturn(new PaymentCheck(new BigDecimal("20000"), "pay-2"));
+        when(qpayClient.checkPayment(any(), anyString())).thenReturn(new PaymentCheck(new BigDecimal("10000"), "pay-2"));
 
         paymentService.reconcilePendingPayments();
 

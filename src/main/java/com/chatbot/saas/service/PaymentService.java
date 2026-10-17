@@ -322,7 +322,7 @@ public class PaymentService {
     }
 
     private static String description(Order order) {
-        String text = String.format("Захиалга #%d: %s × %d", order.getId(), order.getProductName(), order.getQuantity());
+        String text = String.format("Захиалга #%d: %s", order.getId(), order.getProductName());
         return text.length() > MAX_DESCRIPTION_LENGTH ? text.substring(0, MAX_DESCRIPTION_LENGTH) : text;
     }
 

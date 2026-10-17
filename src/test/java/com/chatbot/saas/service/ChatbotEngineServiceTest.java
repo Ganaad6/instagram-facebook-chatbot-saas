@@ -190,7 +190,7 @@ class ChatbotEngineServiceTest {
     }
 
     @Test
-    void choosingAProductAsksForQuantity() {
+    void choosingAProductAsksToConfirmIt() {
         Category category = Category.builder().id(10L).name("Shoes").isActive(true).build();
         Conversation conversation = conversationIn(Conversation.State.AWAITING_PRODUCT, category, null);
         when(oAuthService.getDecryptedAccessToken(conversation.getBusiness())).thenReturn("token");
@@ -198,53 +198,39 @@ class ChatbotEngineServiceTest {
 
         chatbotEngineService.process(conversation, "1", "INSTAGRAM");
 
-        assertEquals(Conversation.State.AWAITING_QUANTITY, conversation.getState());
-        verify(metaReplyService).sendWithQuickReplies(eq("customer-1"), contains("Хэдэн ширхэг"), anyList(), eq("token"));
+        assertEquals(Conversation.State.AWAITING_CONFIRMATION, conversation.getState());
+        verify(metaReplyService).sendWithQuickReplies(eq("customer-1"), contains("Red shoes — ₮10"), anyList(), eq("token"));
+        verify(metaReplyService, never()).sendWithQuickReplies(any(), contains("ширхэг"), anyList(), any());
     }
 
     @Test
-    void validQuantityShowsConfirmationWithTotal() {
+    void conversationLeftAtTheOldQuantityStepMovesOnToConfirmation() {
         Conversation conversation = conversationIn(Conversation.State.AWAITING_QUANTITY, null, product(1L, "Red shoes", null));
         when(oAuthService.getDecryptedAccessToken(conversation.getBusiness())).thenReturn("token");
 
         chatbotEngineService.process(conversation, "3", "INSTAGRAM");
 
         assertEquals(Conversation.State.AWAITING_CONFIRMATION, conversation.getState());
-        assertEquals(3, conversation.getSelectedQuantity());
-        verify(metaReplyService).sendWithQuickReplies(eq("customer-1"), contains("× 3 — нийт ₮30"), anyList(), eq("token"));
+        verify(metaReplyService).sendWithQuickReplies(eq("customer-1"), contains("захиалах уу"), anyList(), eq("token"));
     }
 
     @Test
-    void outOfRangeQuantityIsRejected() {
-        for (String input : List.of("0", "100", "abc", "")) {
-            Conversation conversation = conversationIn(Conversation.State.AWAITING_QUANTITY, null, product(1L, "Red shoes", null));
-            when(oAuthService.getDecryptedAccessToken(conversation.getBusiness())).thenReturn("token");
-
-            chatbotEngineService.process(conversation, input, "INSTAGRAM");
-
-            assertEquals(Conversation.State.AWAITING_QUANTITY, conversation.getState(), "input: " + input);
-            assertNull(conversation.getSelectedQuantity());
-        }
-    }
-
-    @Test
-    void addressStepPlacesOrderWithChosenQuantity() {
+    void addressStepPlacesOrderForOneItem() {
         Product product = product(1L, "Red shoes", null);
         Conversation conversation = conversationIn(Conversation.State.COLLECT_ADDRESS, null, product);
-        conversation.setSelectedQuantity(3);
         conversation.setCollectedName("Bat");
         conversation.setCollectedPhone("99112233");
         when(oAuthService.getDecryptedAccessToken(conversation.getBusiness())).thenReturn("token");
-        Order order = Order.builder().id(42L).productName("Red shoes").quantity(3)
-                .unitPrice(BigDecimal.TEN).totalAmount(BigDecimal.valueOf(30)).build();
-        when(orderService.createOrder(any(), any(), eq(product), eq(3), eq("Bat"), eq("99112233"),
+        Order order = Order.builder().id(42L).productName("Red shoes").quantity(1)
+                .unitPrice(BigDecimal.TEN).totalAmount(BigDecimal.TEN).build();
+        when(orderService.createOrder(any(), any(), eq(product), eq(1), eq("Bat"), eq("99112233"),
                 eq("Ulaanbaatar"), eq(Order.Platform.INSTAGRAM))).thenReturn(order);
 
         chatbotEngineService.process(conversation, "Ulaanbaatar", "INSTAGRAM");
 
         assertEquals(Conversation.State.ORDER_SAVED, conversation.getState());
         assertEquals(Conversation.Status.COMPLETED, conversation.getStatus());
-        verify(metaReplyService).sendText(eq("customer-1"), contains("Red shoes × 3"), eq("token"));
+        verify(metaReplyService).sendText(eq("customer-1"), contains("Red shoes — ₮10"), eq("token"));
         verify(metaReplyService).sendText(eq("customer-1"), contains("Захиалга #42 бүртгэгдлээ"), eq("token"));
         verify(metaReplyService).sendText(eq("customer-1"), contains("\"оператор\""), eq("token"));
         verify(orderNotificationService).notifyNewOrder(conversation.getBusiness(), order);
@@ -365,7 +351,7 @@ class ChatbotEngineServiceTest {
 
         chatbotEngineService.process(conversation, "PRODUCT_7", "INSTAGRAM");
 
-        assertEquals(Conversation.State.AWAITING_QUANTITY, conversation.getState());
+        assertEquals(Conversation.State.AWAITING_CONFIRMATION, conversation.getState());
         assertSame(product, conversation.getSelectedProduct());
         assertSame(category, conversation.getSelectedCategory());
         verify(metaReplyService).sendWithQuickReplies(eq("customer-1"), contains("Арьсан, 36-41 размер"), anyList(), eq("token"));
